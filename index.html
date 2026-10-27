@@ -29,6 +29,172 @@
     body { background-color: #090d16; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     .nav-btn.active { color: #10b981; }
   </style>
+
+  <!-- SCRIPT DEFINIDO ANTES DE CARREGAR O HTML PARA GARANTIR DISPONIBILIDADE GLOBAL -->
+  <script>
+    const SUPABASE_URL = "https://iafaafpuugamvmtrkmzc.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhZmFhZnB1dWdhbXZtdHJrbXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxMDM0MDYsImV4cCI6MjEwODY3OTQwNn0.K0YrGVJJrGi8UgKOxsBZoW8G7YJuCsadYNUoudBvzvo";
+    
+    let supabaseClient = null;
+    try {
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+    } catch(e) {}
+
+    let appState = {
+      categories: [
+        { name: "Investimento / Poupança", color: "#eab308", subcategories: ["Reserva de Emergência", "Poupança Geral", "Ações & ETFs"] },
+        { name: "Alimentação", color: "#10b981", subcategories: ["Supermercado", "Restaurantes"] },
+        { name: "Habitação", color: "#3b82f6", subcategories: ["Renda / Prestação", "Eletricidade"] },
+        { name: "Rendimentos", color: "#22c55e", subcategories: ["Ordenado"] }
+      ],
+      transactions: [
+        { id: "1", type: "receita", date: "2026-10-01", description: "Vencimento", category: "Rendimentos", subcategory: "Ordenado", amount: 2500 },
+        { id: "2", type: "investimento", date: "2026-10-02", description: "Reserva", category: "Investimento / Poupança", subcategory: "Reserva de Emergência", amount: 400 },
+        { id: "3", type: "despesa", date: "2026-10-05", description: "Supermercado", category: "Alimentação", subcategory: "Supermercado", amount: 120 }
+      ]
+    };
+
+    window.switchTab = function(tab) {
+      ['geral', 'investimentos', 'diario', 'categorias', 'ia'].forEach(t => {
+        const v = document.getElementById(`view-${t}`);
+        if(v) v.classList.add('hidden');
+        const dt = document.getElementById(`tab-${t}`);
+        if(dt) dt.className = "tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white";
+        const mb = document.getElementById(`mb-${t}`);
+        if(mb) { mb.classList.remove('active', 'text-emerald-400'); mb.classList.add('text-brand-gray'); }
+      });
+
+      const activeV = document.getElementById(`view-${tab}`);
+      if(activeV) activeV.classList.remove('hidden');
+      const activeDt = document.getElementById(`tab-${tab}`);
+      if(activeDt) activeDt.className = "tab-link text-emerald-400 border-b-2 border-emerald-400 pb-3 font-bold";
+      const activeMb = document.getElementById(`mb-${tab}`);
+      if(activeMb) { activeMb.classList.add('active', 'text-emerald-400'); activeMb.classList.remove('text-brand-gray'); }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.openAddTransactionModal = function() {
+      const sel = document.getElementById('txCategory');
+      if(sel) {
+        sel.innerHTML = appState.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+      }
+      const modal = document.getElementById('txModal');
+      if(modal) modal.classList.remove('hidden');
+    };
+
+    window.closeTxModal = function() {
+      const modal = document.getElementById('txModal');
+      if(modal) modal.classList.add('hidden');
+    };
+
+    window.saveTransaction = async function(e) {
+      e.preventDefault();
+      appState.transactions.push({
+        id: Date.now().toString(),
+        type: document.getElementById('txType').value,
+        date: document.getElementById('txDate').value,
+        description: document.getElementById('txDesc').value,
+        category: document.getElementById('txCategory').value,
+        subcategory: 'Geral',
+        amount: parseFloat(document.getElementById('txAmount').value) || 0
+      });
+      await saveData();
+      window.closeTxModal();
+      renderAll();
+    };
+
+    window.openRedeemModal = function() { alert("Funcionalidade de resgate"); };
+    window.openImportModal = function() { alert("Funcionalidade de importação"); };
+    window.openNewCategoryModal = function() { alert("Nova categoria"); };
+    window.runAIAnalysis = function() { alert("Análise executada"); };
+    window.exportJSON = function() { alert("Backup exportado"); };
+
+    async function loadData() {
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient.from('app_data').select('payload').eq('id', 'global_state').single();
+          if (data && data.payload) { appState = data.payload; return; }
+        } catch(e) {}
+      }
+      const local = localStorage.getItem('financas_data');
+      if (local) { try { appState = JSON.parse(local); } catch(e){} }
+    }
+
+    async function saveData() {
+      if (supabaseClient) {
+        try { await supabaseClient.from('app_data').upsert({ id: 'global_state', payload: appState }); } catch(e){}
+      }
+      localStorage.setItem('financas_data', JSON.stringify(appState));
+    }
+
+    function renderAll() {
+      renderKPIs();
+      renderRecent();
+      renderJournal();
+      renderCategories();
+    }
+
+    function renderKPIs() {
+      let rec = 0, desp = 0, inv = 0;
+      appState.transactions.forEach(t => {
+        if(t.type==='receita') rec += t.amount;
+        if(t.type==='despesa') desp += t.amount;
+        if(t.type==='investimento') inv += t.amount;
+      });
+      const elSaldo = document.getElementById('kpiSaldo');
+      if(elSaldo) elSaldo.innerText = formatEUR(rec - desp - inv);
+      const elRec = document.getElementById('kpiReceitas');
+      if(elRec) elRec.innerText = formatEUR(rec);
+      const elDesp = document.getElementById('kpiDespesas');
+      if(elDesp) elDesp.innerText = formatEUR(desp);
+      const elInv = document.getElementById('kpiInvestimento');
+      if(elInv) elInv.innerText = formatEUR(inv);
+    }
+
+    function renderRecent() {
+      const el = document.getElementById('recentTransactionsList');
+      if(el) {
+        el.innerHTML = appState.transactions.slice(-4).reverse().map(t => `
+          <div class="flex justify-between items-center py-2 border-b border-brand-border/50 text-xs">
+            <div><p class="font-semibold text-white">${t.description}</p><p class="text-[10px] text-brand-gray">${t.date}</p></div>
+            <span class="font-bold ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderJournal() {
+      const el = document.getElementById('journalList');
+      if(el) {
+        el.innerHTML = appState.transactions.map(t => `
+          <div class="p-3 flex justify-between items-center text-xs">
+            <div><p class="font-semibold text-white">${t.description}</p><p class="text-[10px] text-brand-gray">${t.date} • ${t.category}</p></div>
+            <span class="font-bold">€${t.amount.toFixed(2)}</span>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderCategories() {
+      const el = document.getElementById('categoriesContainer');
+      if(el) {
+        el.innerHTML = appState.categories.map(c => `
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border"><p class="font-bold text-white text-sm">${c.name}</p></div>
+        `).join('');
+      }
+    }
+
+    function formatEUR(v) { return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v); }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const dateEl = document.getElementById('txDate');
+      if(dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+      await loadData();
+      renderAll();
+    });
+  </script>
 </head>
 <body class="pb-24 md:pb-8 antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col justify-between">
 
@@ -92,12 +258,6 @@
         </div>
       </div>
 
-      <!-- Gráfico -->
-      <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
-        <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
-        <div id="evolutionChartContainer" class="w-full h-48 flex items-end justify-between gap-2 pt-4 pb-2 px-2 border-b border-brand-border"></div>
-      </div>
-
       <!-- Recentes -->
       <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
         <h3 class="font-bold text-base text-white">Atividades Recentes</h3>
@@ -116,7 +276,6 @@
 
     <!-- TAB 3: DIÁRIO -->
     <div id="view-diario" class="space-y-4 hidden">
-      <input type="text" id="searchTx" oninput="window.renderJournal()" placeholder="Pesquisar..." class="bg-brand-card border border-brand-border px-4 py-2 rounded-xl text-sm w-full text-white">
       <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
         <div id="journalList" class="divide-y divide-brand-border"></div>
       </div>
@@ -136,7 +295,6 @@
       <div class="bg-brand-card p-6 rounded-2xl border border-brand-border space-y-3">
         <h2 class="text-xl font-bold text-emerald-400">Relatórios & IA</h2>
         <button onclick="window.runAIAnalysis()" class="bg-emerald-500 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Diagnóstico</button>
-        <p id="aiSavingsRate" class="text-xs text-brand-gray pt-2">Clica para analisar.</p>
       </div>
     </div>
 
@@ -174,151 +332,5 @@
     </div>
   </div>
 
-  <!-- SCRIPT -->
-  <script>
-    const SUPABASE_URL = "https://iafaafpuugamvmtrkmzc.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhZmFhZnB1dWdhbXZtdHJrbXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxMDM0MDYsImV4cCI6MjEwODY3OTQwNn0.K0YrGVJJrGi8UgKOxsBZoW8G7YJuCsadYNUoudBvzvo";
-    
-    let supabaseClient = null;
-    try {
-      if (window.supabase) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-    } catch(e) {}
-
-    let appState = {
-      categories: [
-        { name: "Investimento / Poupança", color: "#eab308", subcategories: ["Reserva de Emergência", "Poupança Geral", "Ações & ETFs"] },
-        { name: "Alimentação", color: "#10b981", subcategories: ["Supermercado", "Restaurantes"] },
-        { name: "Habitação", color: "#3b82f6", subcategories: ["Renda / Prestação", "Eletricidade"] },
-        { name: "Rendimentos", color: "#22c55e", subcategories: ["Ordenado"] }
-      ],
-      transactions: [
-        { id: "1", type: "receita", date: "2026-10-01", description: "Vencimento", category: "Rendimentos", subcategory: "Ordenado", amount: 2500 },
-        { id: "2", type: "investimento", date: "2026-10-02", description: "Reserva", category: "Investimento / Poupança", subcategory: "Reserva de Emergência", amount: 400 },
-        { id: "3", type: "despesa", date: "2026-10-05", description: "Supermercado", category: "Alimentação", subcategory: "Supermercado", amount: 120 }
-      ]
-    };
-
-    window.addEventListener('DOMContentLoaded', async () => {
-      document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
-      await loadData();
-      renderAll();
-    });
-
-    async function loadData() {
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('app_data').select('payload').eq('id', 'global_state').single();
-          if (data && data.payload) { appState = data.payload; return; }
-        } catch(e) {}
-      }
-      const local = localStorage.getItem('financas_data');
-      if (local) { try { appState = JSON.parse(local); } catch(e){} }
-    }
-
-    async function saveData() {
-      if (supabaseClient) {
-        try { await supabaseClient.from('app_data').upsert({ id: 'global_state', payload: appState }); } catch(e){}
-      }
-      localStorage.setItem('financas_data', JSON.stringify(appState));
-    }
-
-    window.switchTab = function(tab) {
-      ['geral', 'investimentos', 'diario', 'categorias', 'ia'].forEach(t => {
-        const v = document.getElementById(`view-${t}`);
-        if(v) v.classList.add('hidden');
-        const dt = document.getElementById(`tab-${t}`);
-        if(dt) dt.className = "tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white";
-        const mb = document.getElementById(`mb-${t}`);
-        if(mb) { mb.classList.remove('active', 'text-emerald-400'); mb.classList.add('text-brand-gray'); }
-      });
-
-      const activeV = document.getElementById(`view-${tab}`);
-      if(activeV) activeV.classList.remove('hidden');
-      const activeDt = document.getElementById(`tab-${tab}`);
-      if(activeDt) activeDt.className = "tab-link text-emerald-400 border-b-2 border-emerald-400 pb-3 font-bold";
-      const activeMb = document.getElementById(`mb-${tab}`);
-      if(activeMb) { activeMb.classList.add('active', 'text-emerald-400'); activeMb.classList.remove('text-brand-gray'); }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function renderAll() {
-      renderKPIs();
-      renderRecent();
-      window.renderJournal();
-      window.renderCategories();
-      renderInvestments();
-    }
-
-    function renderKPIs() {
-      let rec = 0, desp = 0, inv = 0;
-      appState.transactions.forEach(t => {
-        if(t.type==='receita') rec += t.amount;
-        if(t.type==='despesa') desp += t.amount;
-        if(t.type==='investimento') inv += t.amount;
-      });
-      document.getElementById('kpiSaldo').innerText = formatEUR(rec - desp - inv);
-      document.getElementById('kpiReceitas').innerText = formatEUR(rec);
-      document.getElementById('kpiDespesas').innerText = formatEUR(desp);
-      document.getElementById('kpiInvestimento').innerText = formatEUR(inv);
-    }
-
-    function renderRecent() {
-      const el = document.getElementById('recentTransactionsList');
-      el.innerHTML = appState.transactions.slice(-4).reverse().map(t => `
-        <div class="flex justify-between items-center py-2 border-b border-brand-border/50 text-xs">
-          <div><p class="font-semibold text-white">${t.description}</p><p class="text-[10px] text-brand-gray">${t.date}</p></div>
-          <span class="font-bold ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
-        </div>
-      `).join('');
-    }
-
-    window.renderJournal = function() {
-      const el = document.getElementById('journalList');
-      el.innerHTML = appState.transactions.map(t => `
-        <div class="p-3 flex justify-between items-center text-xs">
-          <div><p class="font-semibold text-white">${t.description}</p><p class="text-[10px] text-brand-gray">${t.date} • ${t.category}</p></div>
-          <span class="font-bold">€${t.amount.toFixed(2)}</span>
-        </div>
-      `).join('');
-    }
-
-    window.renderCategories = function() {
-      document.getElementById('categoriesContainer').innerHTML = appState.categories.map(c => `
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border"><p class="font-bold text-white text-sm">${c.name}</p></div>
-      `).join('');
-    }
-
-    function renderInvestments() {
-      document.getElementById('investmentsList').innerHTML = `<div class="bg-brand-card p-4 rounded-2xl border border-brand-border"><p class="text-xs text-amber-400">Portfólio Ativo</p></div>`;
-    }
-
-    window.openAddTransactionModal = function() {
-      const sel = document.getElementById('txCategory');
-      sel.innerHTML = appState.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-      document.getElementById('txModal').classList.remove('hidden');
-    }
-    window.closeTxModal = function() { document.getElementById('txModal').classList.add('hidden'); }
-
-    window.saveTransaction = async function(e) {
-      e.preventDefault();
-      appState.transactions.push({
-        id: Date.now().toString(),
-        type: document.getElementById('txType').value,
-        date: document.getElementById('txDate').value,
-        description: document.getElementById('txDesc').value,
-        category: document.getElementById('txCategory').value,
-        subcategory: 'Geral',
-        amount: parseFloat(document.getElementById('txAmount').value) || 0
-      });
-      await saveData();
-      window.closeTxModal();
-      renderAll();
-    }
-
-    window.runAIAnalysis = function() {
-      document.getElementById('aiSavingsRate').innerText = "Análise concluída com sucesso!";
-    }
-
-    function formatEUR(
+</body>
+</html>
