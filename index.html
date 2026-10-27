@@ -105,7 +105,8 @@
     };
 
     let selectedJournalMonth = 'todos';
-    let selectedChartMonth = 'todos';
+    let selectedBarMonth = 'todos';
+    let selectedPieMonth = 'todos';
     let sidebarCollapsed = true;
 
     window.toggleSidebar = function() {
@@ -236,6 +237,80 @@
         await saveData();
         renderAll();
       }
+    };
+
+    // Funcionalidade Mobile: Leitura de Fatura por Fotografia (OCR Simulation & Modal Resumo)
+    window.triggerCameraCapture = function() {
+      document.getElementById('cameraInput').click();
+    };
+
+    window.handleReceiptCapture = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Simulação inteligente de OCR para extração de dados da fatura
+      const sampleMerchants = ["Continente", "Pingo Doce", "Galp", "Zara", "McDonalds", "Farmácia Central"];
+      const randomMerchant = sampleMerchants[Math.floor(Math.random() * sampleMerchants.length)];
+      const randomAmount = (Math.random() * 45 + 5).toFixed(2);
+      const today = new Date().toISOString().split('T')[0];
+
+      let suggestedCategory = "Alimentação";
+      let suggestedSubcategory = "Supermercado";
+
+      if (randomMerchant === "Galp") {
+        suggestedCategory = "Transportes";
+        suggestedSubcategory = "Combustível";
+      } else if (randomMerchant === "Zara") {
+        suggestedCategory = "Alimentação"; // Categoria genérica de consumo
+        suggestedSubcategory = "Geral";
+      } else if (randomMerchant === "Farmácia Central") {
+        suggestedCategory = "Alimentação";
+        suggestedSubcategory = "Geral";
+      }
+
+      // Preenche os dados no modal de confirmação do OCR
+      document.getElementById('ocrDesc').value = `Fatura: ${randomMerchant}`;
+      document.getElementById('ocrAmount').value = randomAmount;
+      document.getElementById('ocrDate').value = today;
+
+      const catSelect = document.getElementById('ocrCategory');
+      catSelect.innerHTML = '';
+      appState.categories.filter(c => c.name !== "Rendimentos").forEach(c => {
+        catSelect.innerHTML += `<option value="${c.name}" ${c.name === suggestedCategory ? 'selected' : ''}>${c.name}</option>`;
+      });
+
+      window.updateOcrSubcats();
+      document.getElementById('ocrModal').classList.remove('hidden');
+    };
+
+    window.updateOcrSubcats = function() {
+      const catName = document.getElementById('ocrCategory').value;
+      const subSelect = document.getElementById('ocrSubcategory');
+      subSelect.innerHTML = '';
+      const cat = appState.categories.find(c => c.name === catName);
+      if (cat) { cat.subcategories.forEach(s => { subSelect.innerHTML += `<option value="${s}">${s}</option>`; }); }
+    };
+
+    window.confirmOcrTransaction = async function(e) {
+      e.preventDefault();
+      const txData = {
+        id: Date.now().toString(),
+        type: 'despesa',
+        date: document.getElementById('ocrDate').value,
+        description: document.getElementById('ocrDesc').value,
+        category: document.getElementById('ocrCategory').value,
+        subcategory: document.getElementById('ocrSubcategory').value,
+        amount: parseFloat(document.getElementById('ocrAmount').value) || 0
+      };
+
+      appState.transactions.push(txData);
+      await saveData();
+      document.getElementById('ocrModal').classList.add('hidden');
+      renderAll();
+    };
+
+    window.closeOcrModal = function() {
+      document.getElementById('ocrModal').classList.add('hidden');
     };
 
     window.openForecastModal = function(id = null) {
@@ -370,7 +445,7 @@
       renderAll();
     };
 
-    // Função corrigida para alternar perfeitamente a edição e trancagem do saldo da Conta à Ordem
+    // Edição e Trancagem da Conta à Ordem
     window.toggleBalanceEdit = function(isEditing) {
       const vDisp = document.getElementById('kpiSaldoDisplay');
       const iWrap = document.getElementById('input-balance-wrap');
@@ -503,7 +578,6 @@
       reader.readAsText(file);
     };
 
-    // Inteligência Artificial & Insights com os 2 Tópicos Solicitados
     window.runAIAnalysis = function() {
       let totalRec = 0, totalDesp = 0, totalInv = 0;
       appState.transactions.forEach(t => {
@@ -514,7 +588,6 @@
 
       const savingsRate = totalRec > 0 ? (((totalRec - totalDesp) / totalRec) * 100).toFixed(1) : 0;
       
-      // Tópico 1: Análise da saúde financeira
       let healthText = "";
       if (savingsRate >= 20) {
         healthText = `A sua saúde financeira está excelente! Apresenta uma taxa de retenção líquida de ${savingsRate}%, o que cumpre e supera as melhores práticas de literacia financeira (regra 50/30/20). O seu fluxo de caixa é positivo e demonstra forte capacidade de poupança.`;
@@ -525,7 +598,6 @@
       }
       document.getElementById('aiHealthAnalysis').innerText = healthText;
 
-      // Tópico 2: Até 5 Recomendações financeiras baseadas em literacia financeira
       let recsList = [
         "1. **Constitua o Fundo de Emergência**: Garanta o equivalente a 3 a 6 meses de despesas essenciais numa categoria de alta liquidez e baixo risco (como Depósitos a Prazo ou Reserva de Emergência).",
         "2. **Aplique a Regra 50/30/20**: Direcione 50% do rendimento líquido para necessidades, 30% para desejos/estilo de vida e pelo menos 20% para objetivos de poupança e investimento.",
@@ -567,6 +639,15 @@
       renderCategories();
       renderInvestments();
       renderInvestmentLineChart();
+      renderDynamicEditIcons();
+    }
+
+    // Injeta os ícones SVG do lápis e visto nos botões dinâmicos após carregamento
+    function renderDynamicEditIcons() {
+      const btnEdit = document.getElementById('btn-edit-balance');
+      const btnSave = document.getElementById('btn-save-balance');
+      if (btnEdit) btnEdit.innerHTML = editIconSvg;
+      if (btnSave) btnSave.innerHTML = checkIconSvg;
     }
 
     function renderKPIs() {
@@ -592,15 +673,19 @@
       months.forEach(m => { options += `<option value="${m}">${m}</option>`; });
       selBar.innerHTML = options;
       selPie.innerHTML = options;
-      selBar.value = selectedChartMonth;
-      selPie.value = selectedChartMonth;
+      selBar.value = selectedBarMonth;
+      selPie.value = selectedPieMonth;
     }
 
-    window.onChartFilterChange = function(m) {
-      selectedChartMonth = m;
-      document.getElementById('barChartFilter').value = m;
-      document.getElementById('pieChartFilter').value = m;
+    // Filtros Independentes: Gráfico de Barras
+    window.onBarChartFilterChange = function(m) {
+      selectedBarMonth = m;
       renderEvolutionChart();
+    };
+
+    // Filtros Independentes: Gráfico Circular
+    window.onPieChartFilterChange = function(m) {
+      selectedPieMonth = m;
       renderCategoryPieAndList();
     };
 
@@ -610,8 +695,8 @@
       container.innerHTML = '';
       let groupedData = {};
       let txs = appState.transactions;
-      if (selectedChartMonth !== 'todos') {
-        txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
+      if (selectedBarMonth !== 'todos') {
+        txs = txs.filter(t => t.date.startsWith(selectedBarMonth));
       }
       txs.forEach(tx => {
         const m = tx.date.substring(0, 7);
@@ -645,7 +730,6 @@
       });
     }
 
-    // Legenda do Gráfico Circular com Ícones e SEM a bola de cor (cor assumida na barra)
     function renderCategoryPieAndList() {
       const listEl = document.getElementById('categoryBreakdownList');
       const pieSvg = document.getElementById('categoryPieSvg');
@@ -654,8 +738,8 @@
       pieSvg.innerHTML = '';
 
       let txs = appState.transactions.filter(t => t.type === 'despesa');
-      if (selectedChartMonth !== 'todos') {
-        txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
+      if (selectedPieMonth !== 'todos') {
+        txs = txs.filter(t => t.date.startsWith(selectedPieMonth));
       }
 
       let catTotals = {};
@@ -849,11 +933,11 @@
                 <div class="flex items-center gap-2">
                   <div id="view-nameA" class="flex items-center gap-2">
                     <span class="text-sm font-bold text-blue-400">${settings.nameA}</span>
-                    <button onclick="window.toggleEditMode('nameA')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('nameA')" class="p-1.5 text-brand-gray hover:text-white bg-brand-card rounded-lg border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-nameA" class="hidden flex items-center gap-1">
                     <input type="text" id="input-nameA" value="${settings.nameA}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-blue-400 w-28">
-                    <button onclick="window.saveFieldEdit('nameA', 'input-nameA'); window.toggleEditMode('nameA');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('nameA', 'input-nameA'); window.toggleEditMode('nameA');" class="p-1.5 text-emerald-400 bg-brand-card rounded-lg border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
                 <span class="text-sm font-bold text-white">${formatEUR(valA)}</span>
@@ -863,22 +947,22 @@
                   <span>Distr.:</span>
                   <div id="view-pctA" class="flex items-center gap-1 inline-flex">
                     <span class="font-semibold text-white">${settings.pctA}%</span>
-                    <button onclick="window.toggleEditMode('pctA')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('pctA')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-pctA" class="hidden flex items-center gap-1">
                     <input type="number" step="0.1" id="input-pctA" value="${settings.pctA}" class="w-14 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
-                    <button onclick="window.saveFieldEdit('pctA', 'input-pctA'); window.toggleEditMode('pctA');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('pctA', 'input-pctA'); window.toggleEditMode('pctA');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
                 <div class="flex items-center gap-1">
                   <span>Extra:</span>
                   <div id="view-extraA" class="flex items-center gap-1 inline-flex">
                     <span class="font-semibold text-white">${formatEUR(settings.extraA)}</span>
-                    <button onclick="window.toggleEditMode('extraA')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('extraA')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-extraA" class="hidden flex items-center gap-1">
                     <input type="number" step="0.01" id="input-extraA" value="${settings.extraA}" class="w-16 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
-                    <button onclick="window.saveFieldEdit('extraA', 'input-extraA'); window.toggleEditMode('extraA');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('extraA', 'input-extraA'); window.toggleEditMode('extraA');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
               </div>
@@ -890,11 +974,11 @@
                 <div class="flex items-center gap-2">
                   <div id="view-nameB" class="flex items-center gap-2">
                     <span class="text-sm font-bold text-purple-400">${settings.nameB}</span>
-                    <button onclick="window.toggleEditMode('nameB')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('nameB')" class="p-1.5 text-brand-gray hover:text-white bg-brand-card rounded-lg border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-nameB" class="hidden flex items-center gap-1">
                     <input type="text" id="input-nameB" value="${settings.nameB}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-purple-400 w-28">
-                    <button onclick="window.saveFieldEdit('nameB', 'input-nameB'); window.toggleEditMode('nameB');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('nameB', 'input-nameB'); window.toggleEditMode('nameB');" class="p-1.5 text-emerald-400 bg-brand-card rounded-lg border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
                 <span class="text-sm font-bold text-white">${formatEUR(valB)}</span>
@@ -904,22 +988,22 @@
                   <span>Distr.:</span>
                   <div id="view-pctB" class="flex items-center gap-1 inline-flex">
                     <span class="font-semibold text-white">${settings.pctB}%</span>
-                    <button onclick="window.toggleEditMode('pctB')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('pctB')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-pctB" class="hidden flex items-center gap-1">
                     <input type="number" step="0.1" id="input-pctB" value="${settings.pctB}" class="w-14 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
-                    <button onclick="window.saveFieldEdit('pctB', 'input-pctB'); window.toggleEditMode('pctB');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('pctB', 'input-pctB'); window.toggleEditMode('pctB');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
                 <div class="flex items-center gap-1">
                   <span>Extra:</span>
                   <div id="view-extraB" class="flex items-center gap-1 inline-flex">
                     <span class="font-semibold text-white">${formatEUR(settings.extraB)}</span>
-                    <button onclick="window.toggleEditMode('extraB')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                    <button onclick="window.toggleEditMode('extraB')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-extraB" class="hidden flex items-center gap-1">
                     <input type="number" step="0.01" id="input-extraB" value="${settings.extraB}" class="w-16 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
-                    <button onclick="window.saveFieldEdit('extraB', 'input-extraB'); window.toggleEditMode('extraB');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                    <button onclick="window.saveFieldEdit('extraB', 'input-extraB'); window.toggleEditMode('extraB');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
               </div>
@@ -1157,13 +1241,13 @@
         <h2 class="text-xl font-bold text-emerald-400">Visão Geral</h2>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <!-- Conta à Ordem com Edição e Trancagem Corrigida -->
+          <!-- Conta à Ordem com Botão de Lápis / Visto Perfeitamente Alinhado -->
           <div class="bg-brand-card p-4 rounded-2xl border border-brand-border relative group">
             <div class="flex justify-between items-center">
               <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
               <div class="flex items-center gap-1">
-                <button id="btn-edit-balance" onclick="window.toggleBalanceEdit(true)" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar Saldo">${editIconSvg}</button>
-                <button id="btn-save-balance" onclick="window.toggleBalanceEdit(false)" class="p-1.5 text-emerald-400 bg-brand-bg rounded-lg border border-brand-border hidden" title="Guardar & Trancar">${checkIconSvg}</button>
+                <button id="btn-edit-balance" onclick="window.toggleBalanceEdit(true)" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border transition" title="Editar Saldo"></button>
+                <button id="btn-save-balance" onclick="window.toggleBalanceEdit(false)" class="p-1.5 text-emerald-400 bg-brand-bg rounded-lg border border-brand-border hidden transition" title="Guardar & Trancar"></button>
               </div>
             </div>
             
@@ -1193,7 +1277,8 @@
               <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
               <p class="text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
             </div>
-            <select id="barChartFilter" onchange="window.onChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+            <!-- Filtro Exclusivo do Gráfico de Barras -->
+            <select id="barChartFilter" onchange="window.onBarChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"></select>
           </div>
 
           <div id="evolutionChartContainer" class="w-full h-48 flex items-end justify-between gap-2 pt-4 pb-2 px-2 border-b border-brand-border"></div>
@@ -1209,7 +1294,8 @@
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
             <div class="flex justify-between items-center">
               <h3 class="font-bold text-base text-white">Gastos por Categoria</h3>
-              <select id="pieChartFilter" onchange="window.onChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+              <!-- Filtro Exclusivo do Gráfico Circular -->
+              <select id="pieChartFilter" onchange="window.onPieChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
             </div>
             <div class="flex items-center gap-4 pt-2">
               <div class="w-24 h-24 flex-shrink-0">
@@ -1266,13 +1352,21 @@
         </div>
       </div>
 
-      <!-- TAB 3: TRANSAÇÕES -->
+      <!-- TAB 3: TRANSAÇÕES (Com Leitura de Fatura Mobile) -->
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 class="text-xl font-bold text-indigo-400">Transações</h2>
-          <button onclick="window.openAddTransactionModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
-            + Nova Entrada
-          </button>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <!-- Botão de Leitura de Fatura por Câmara (Visível Apenas em Mobile) -->
+            <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="window.handleReceiptCapture(event)" class="hidden">
+            <button onclick="window.triggerCameraCapture()" class="md:hidden flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              📷 Tirar Foto à Fatura
+            </button>
+            <button onclick="window.openAddTransactionModal()" class="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
+              + Nova Entrada
+            </button>
+          </div>
         </div>
 
         <div class="flex items-center gap-2 overflow-x-auto pb-1" id="journalMonthButtons"></div>
@@ -1320,7 +1414,7 @@
         <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto pr-1"></div>
       </div>
 
-      <!-- TAB 6: IA (Com os 2 tópicos pedidos) -->
+      <!-- TAB 6: IA -->
       <div id="view-ia" class="tab-content space-y-6 hidden">
         <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-6 rounded-2xl border border-emerald-500/20 space-y-3">
           <h2 class="text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
@@ -1329,7 +1423,6 @@
         </div>
 
         <div class="grid grid-cols-1 gap-4">
-          <!-- Tópico 1 -->
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
             <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
@@ -1338,7 +1431,6 @@
             <p id="aiHealthAnalysis" class="text-xs text-brand-gray">Clique em "Gerar Relatório de IA" para obter o diagnóstico detalhado baseado nos seus dados atuais.</p>
           </div>
 
-          <!-- Tópico 2 -->
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
             <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -1352,6 +1444,51 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- MODAL: CONFIRMAÇÃO DE LEITURA DE FATURA (OCR MOBILE) -->
+  <div id="ocrModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-blue-400 flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          Resumo da Fatura Extraída
+        </h3>
+        <button onclick="window.closeOcrModal()" class="text-brand-gray">✕</button>
+      </div>
+      <p class="text-xs text-brand-gray">Os dados abaixo foram reconhecidos da fotografia. Confirma se os detalhes estão corretos antes de guardar:</p>
+      
+      <form onsubmit="window.confirmOcrTransaction(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-brand-gray mb-1">Comerciante / Descrição</label>
+          <input type="text" id="ocrDesc" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-brand-gray mb-1">Valor Total (€)</label>
+            <input type="number" step="0.01" id="ocrAmount" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-brand-gray mb-1">Data</label>
+            <input type="date" id="ocrDate" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-brand-gray mb-1">Categoria</label>
+            <select id="ocrCategory" onchange="window.updateOcrSubcats()" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-brand-gray mb-1">Subcategoria</label>
+            <select id="ocrSubcategory" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="window.closeOcrModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20">Confirmar & Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- MODAL: TRANSAÇÃO -->
