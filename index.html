@@ -35,8 +35,8 @@
     body { background-color: #090d16; color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
     .tab-content { display: block; }
     .tab-content.hidden { display: none !important; }
-    .sidebar-expanded { width: 260px; min-width: 260px; }
-    .sidebar-collapsed { width: 80px; min-width: 80px; }
+    .sidebar-expanded { width: 240px; min-width: 240px; }
+    .sidebar-collapsed { width: 64px; min-width: 64px; }
     
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #090d16; }
@@ -55,27 +55,23 @@
       }
     } catch(e) {}
 
+    // Exatamente 15 ícones mapeados para as categorias requeridas
     const iconLibrary = {
-      wallet: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>',
-      cart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>',
-      home: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>',
-      car: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m10 0a2 2 0 104 0"></path></svg>',
-      chart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>',
-      gift: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>',
-      heart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>',
-      briefcase: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>',
-      plane: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>',
-      book: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>',
-      cpu: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>',
-      coffee: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 8h1a4 4 0 010 8h-1m-2-8h2m-2 4h2m-6 4v3m-3-3v3m3-3h-3m2-13a4 4 0 100 8h2a4 4 0 100-8h-2z"></path></svg>',
-      film: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>',
-      music: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>',
-      phone: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>',
-      tag: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>',
-      shield: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>',
-      star: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>',
-      key: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>',
-      globe: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+      home: { label: "Casa", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>' },
+      car: { label: "Carro", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m10 0a2 2 0 104 0"></path></svg>' },
+      cart: { label: "Alimentação", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>' },
+      heart: { label: "Crianças", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>' },
+      plane: { label: "Viagens", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>' },
+      card: { label: "Cartão de Crédito", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>' },
+      health: { label: "Saúde", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>' },
+      tax: { label: "Impostos", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"></path></svg>' },
+      film: { label: "Entretenimento", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>' },
+      book: { label: "Educação", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>' },
+      shield: { label: "Seguros", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>' },
+      chart: { label: "Investimentos", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>' },
+      wallet: { label: "Rendimentos", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>' },
+      gift: { label: "Presentes", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>' },
+      tag: { label: "Outros", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>' }
     };
 
     const editIconSvg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>';
@@ -125,24 +121,6 @@
       }
     };
 
-    window.toggleMobileSidebar = function() {
-      const sb = document.getElementById('mainSidebar');
-      const labels = document.querySelectorAll('.sidebar-label');
-      
-      // Em mobile, alterna o estado expandido/colapsado em vez de ocultar/sobrepor
-      if (sb.classList.contains('sidebar-collapsed')) {
-        sb.classList.remove('sidebar-collapsed');
-        sb.classList.add('sidebar-expanded');
-        labels.forEach(l => l.classList.remove('hidden'));
-        sidebarCollapsed = false;
-      } else {
-        sb.classList.remove('sidebar-expanded');
-        sb.classList.add('sidebar-collapsed');
-        labels.forEach(l => l.classList.add('hidden'));
-        sidebarCollapsed = true;
-      }
-    };
-
     window.switchTab = function(tab) {
       ['geral', 'investimentos', 'diario', 'previsibilidade', 'categorias', 'ia'].forEach(t => {
         const v = document.getElementById(`view-${t}`);
@@ -156,7 +134,6 @@
       const activeBtn = document.getElementById(`nav-${tab}`);
       if(activeBtn) activeBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left";
 
-      // Ao selecionar uma opção em mobile, retrai o menu para garantir que o layout flui perfeitamente
       if (window.innerWidth < 768) {
         const sb = document.getElementById('mainSidebar');
         const labels = document.querySelectorAll('.sidebar-label');
@@ -435,12 +412,15 @@
       document.getElementById('catColor').value = currentColor;
       document.getElementById('catSubcats').value = currentSubcats;
 
+      // Renderiza exatamente os 15 ícones mapeados
       Object.keys(iconLibrary).forEach(key => {
         const isChecked = key === currentIcon ? 'checked' : '';
+        const item = iconLibrary[key];
         container.innerHTML += `
-          <label class="flex items-center justify-center p-2 rounded-xl border border-brand-border bg-brand-bg cursor-pointer hover:border-emerald-500 transition">
+          <label class="flex flex-col items-center justify-center p-2 rounded-xl border border-brand-border bg-brand-bg cursor-pointer hover:border-emerald-500 transition group" title="${item.label}">
             <input type="radio" name="catIcon" value="${key}" ${isChecked} class="hidden peer">
-            <div class="text-brand-gray peer-checked:text-emerald-400 peer-checked:scale-110 transition">${iconLibrary[key]}</div>
+            <div class="text-brand-gray peer-checked:text-emerald-400 peer-checked:scale-110 transition">${item.svg}</div>
+            <span class="text-[9px] text-brand-gray mt-1 text-center truncate w-full peer-checked:text-emerald-400">${item.label}</span>
           </label>
         `;
       });
@@ -656,7 +636,8 @@
         const amt = catTotals[catName];
         const pct = (amt / totalDesp) * 100;
         const catObj = appState.categories.find(c => c.name === catName) || { icon: 'tag', color: '#94a3b8' };
-        const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
+        const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
+        const svgIcon = iconEntry.svg;
         const strokeDasharray = `${pct} ${100 - pct}`;
         const strokeDashoffset = 100 - cumulativePct + 25;
         cumulativePct += pct;
@@ -695,7 +676,8 @@
         const recentTxs = [...appState.transactions].reverse().slice(0, 15);
         el.innerHTML = recentTxs.map(t => {
           const catObj = appState.categories.find(c => c.name === t.category) || { icon: 'tag', color: '#94a3b8' };
-          const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          const svgIcon = iconEntry.svg;
           return `
             <div class="flex justify-between items-center py-2.5 border-b border-brand-border/50 text-xs">
               <div class="flex items-center gap-2.5">
@@ -748,7 +730,8 @@
         if(countEl) countEl.innerText = `${filtered.length} registos`;
         el.innerHTML = [...filtered].reverse().map(t => {
           const catObj = appState.categories.find(c => c.name === t.category) || { icon: 'tag', color: '#94a3b8' };
-          const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          const svgIcon = iconEntry.svg;
           return `
             <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
               <div class="flex items-center gap-3">
@@ -937,7 +920,8 @@
       const el = document.getElementById('categoriesContainer');
       if(el) {
         el.innerHTML = appState.categories.map((c, idx) => {
-          const svgIcon = iconLibrary[c.icon] || iconLibrary['tag'];
+          const iconEntry = iconLibrary[c.icon] || iconLibrary['tag'];
+          const svgIcon = iconEntry.svg;
           return `
             <div class="bg-brand-card p-4 rounded-2xl border border-brand-border space-y-3">
               <div class="flex justify-between items-center border-b border-brand-border pb-2">
@@ -1065,7 +1049,7 @@
 
   <!-- BARRA LATERAL (SIDEBAR) -->
   <aside id="mainSidebar" class="sidebar-collapsed bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 flex-shrink-0 min-h-screen z-40">
-    <div class="p-4 space-y-6">
+    <div class="p-3 sm:p-4 space-y-6">
       <div class="flex items-center gap-3">
         <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Menu">
           €
@@ -1113,11 +1097,9 @@
   <!-- CONTEÚDO PRINCIPAL -->
   <div class="flex-1 flex flex-col min-w-0 relative">
     
-    <header class="md:hidden bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center z-30">
+    <!-- Cabeçalho limpo sem o botão de 3 traços -->
+    <header class="bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center z-30">
       <div class="flex items-center gap-3">
-        <button onclick="window.toggleMobileSidebar()" class="p-2 text-white bg-brand-bg rounded-xl border border-brand-border">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-        </button>
         <span class="font-bold text-white text-base">Mestre das Finanças</span>
       </div>
     </header>
@@ -1237,7 +1219,7 @@
         </div>
       </div>
 
-      <!-- TAB 3: TRANSAÇÕES (Inserção 100% Manual) -->
+      <!-- TAB 3: TRANSAÇÕES -->
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 class="text-xl font-bold text-indigo-400">Transações</h2>
@@ -1407,8 +1389,8 @@
         </div>
 
         <div>
-          <label class="block text-xs text-brand-gray mb-1.5">Escolher Ícone Profissional</label>
-          <div id="iconSelectorContainer" class="grid grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 bg-brand-bg border border-brand-border rounded-xl"></div>
+          <label class="block text-xs text-brand-gray mb-1.5">Escolher Ícone Profissional (15 Ícones)</label>
+          <div id="iconSelectorContainer" class="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1.5 bg-brand-bg border border-brand-border rounded-xl"></div>
         </div>
 
         <input type="text" id="catSubcats" placeholder="Subcategorias separadas por vírgula" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
