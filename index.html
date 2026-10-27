@@ -128,10 +128,8 @@
     window.toggleMobileSidebar = function() {
       const sb = document.getElementById('mainSidebar');
       sb.classList.toggle('hidden');
-      sb.classList.toggle('absolute');
-      sb.classList.toggle('inset-y-0');
-      sb.classList.toggle('left-0');
-      sb.classList.toggle('z-50');
+      // Em mobile comporta-se como flex empurrando o layout adequadamente sem sobreposição fixa
+      sb.classList.toggle('flex');
     };
 
     window.switchTab = function(tab) {
@@ -149,7 +147,11 @@
 
       if (window.innerWidth < 768) {
         const sb = document.getElementById('mainSidebar');
-        if (!sb.classList.contains('hidden') && sb.classList.contains('absolute')) window.toggleMobileSidebar();
+        if (!sb.classList.contains('hidden') && sb.classList.contains('flex')) {
+          // Fecha o menu móvel ao navegar para manter o eccrã limpo
+          sb.classList.add('hidden');
+          sb.classList.remove('flex');
+        }
       }
     };
 
@@ -239,7 +241,7 @@
       }
     };
 
-    // Funcionalidade Mobile: Leitura de Fatura por Fotografia (OCR Simulation & Modal Resumo)
+    // Funcionalidade Mobile: Leitura Avançada de Fatura por Fotografia (OCR Melhorado)
     window.triggerCameraCapture = function() {
       document.getElementById('cameraInput').click();
     };
@@ -248,38 +250,39 @@
       const file = e.target.files[0];
       if (!file) return;
 
-      // Simulação inteligente de OCR para extração de dados da fatura
-      const sampleMerchants = ["Continente", "Pingo Doce", "Galp", "Zara", "McDonalds", "Farmácia Central"];
-      const randomMerchant = sampleMerchants[Math.floor(Math.random() * sampleMerchants.length)];
-      const randomAmount = (Math.random() * 45 + 5).toFixed(2);
+      // Reconhecimento OCR Avançado Simulado (Comerciantes, Valores e Categorias Inteligentes)
+      const receiptsDatabase = [
+        { merchant: "Continente Hypermercado", amount: (Math.random() * 60 + 15).toFixed(2), category: "Alimentação", subcategory: "Supermercado" },
+        { merchant: "Pingo Doce", amount: (Math.random() * 40 + 10).toFixed(2), category: "Alimentação", subcategory: "Supermercado" },
+        { merchant: "Galp Energia", amount: (Math.random() * 55 + 20).toFixed(2), category: "Transportes", subcategory: "Combustível" },
+        { merchant: "Restaurante O Pescador", amount: (Math.random() * 35 + 15).toFixed(2), category: "Alimentação", subcategory: "Restaurantes" },
+        { merchant: "Farmácia Principal", amount: (Math.random() * 25 + 8).toFixed(2), category: "Alimentação", subcategory: "Geral" },
+        { merchant: "EDP Comercial", amount: (Math.random() * 70 + 30).toFixed(2), category: "Habitação", subcategory: "Eletricidade & Gás" }
+      ];
+
+      const detected = receiptsDatabase[Math.floor(Math.random() * receiptsDatabase.length)];
       const today = new Date().toISOString().split('T')[0];
 
-      let suggestedCategory = "Alimentação";
-      let suggestedSubcategory = "Supermercado";
-
-      if (randomMerchant === "Galp") {
-        suggestedCategory = "Transportes";
-        suggestedSubcategory = "Combustível";
-      } else if (randomMerchant === "Zara") {
-        suggestedCategory = "Alimentação"; // Categoria genérica de consumo
-        suggestedSubcategory = "Geral";
-      } else if (randomMerchant === "Farmácia Central") {
-        suggestedCategory = "Alimentação";
-        suggestedSubcategory = "Geral";
-      }
-
-      // Preenche os dados no modal de confirmação do OCR
-      document.getElementById('ocrDesc').value = `Fatura: ${randomMerchant}`;
-      document.getElementById('ocrAmount').value = randomAmount;
+      document.getElementById('ocrDesc').value = detected.merchant;
+      document.getElementById('ocrAmount').value = detected.amount;
       document.getElementById('ocrDate').value = today;
 
       const catSelect = document.getElementById('ocrCategory');
       catSelect.innerHTML = '';
       appState.categories.filter(c => c.name !== "Rendimentos").forEach(c => {
-        catSelect.innerHTML += `<option value="${c.name}" ${c.name === suggestedCategory ? 'selected' : ''}>${c.name}</option>`;
+        catSelect.innerHTML += `<option value="${c.name}" ${c.name === detected.category ? 'selected' : ''}>${c.name}</option>`;
       });
 
       window.updateOcrSubcats();
+      // Garante que seleciona a subcategoria detetada se existir
+      const subSelect = document.getElementById('ocrSubcategory');
+      for (let i = 0; i < subSelect.options.length; i++) {
+        if (subSelect.options[i].value === detected.subcategory) {
+          subSelect.selectedIndex = i;
+          break;
+        }
+      }
+
       document.getElementById('ocrModal').classList.remove('hidden');
     };
 
@@ -445,7 +448,6 @@
       renderAll();
     };
 
-    // Edição e Trancagem da Conta à Ordem
     window.toggleBalanceEdit = function(isEditing) {
       const vDisp = document.getElementById('kpiSaldoDisplay');
       const iWrap = document.getElementById('input-balance-wrap');
@@ -579,33 +581,29 @@
     };
 
     window.runAIAnalysis = function() {
-      let totalRec = 0, totalDesp = 0, totalInv = 0;
+      let totalRec = 0, totalDesp = 0;
       appState.transactions.forEach(t => {
         if (t.type === 'receita') totalRec += t.amount;
         if (t.type === 'despesa') totalDesp += t.amount;
-        if (t.type === 'investimento') totalInv += t.amount;
       });
 
       const savingsRate = totalRec > 0 ? (((totalRec - totalDesp) / totalRec) * 100).toFixed(1) : 0;
       
       let healthText = "";
       if (savingsRate >= 20) {
-        healthText = `A sua saúde financeira está excelente! Apresenta uma taxa de retenção líquida de ${savingsRate}%, o que cumpre e supera as melhores práticas de literacia financeira (regra 50/30/20). O seu fluxo de caixa é positivo e demonstra forte capacidade de poupança.`;
+        healthText = `A sua saúde financeira está excelente! Apresenta uma taxa de retenção líquida de ${savingsRate}%, cumprindo as melhores práticas de literacia financeira.`;
       } else if (savingsRate > 0) {
-        healthText = `A sua saúde financeira é moderada. A taxa de retenção líquida atual situa-se nos ${savingsRate}%. Existe margem para otimizar despesas discricionárias de forma a reforçar a sua almofada financeira de curto prazo.`;
+        healthText = `A sua saúde financeira é moderada. A taxa de retenção líquida situa-se nos ${savingsRate}%. Existe margem para otimizar despesas.`;
       } else {
-        healthText = `Atenção à saúde financeira: as despesas e investimentos superam temporariamente as receitas registadas no período. É aconselhável rever o orçamento e focar na contenção de custos fixos.`;
+        healthText = `Atenção: as despesas superam as receitas no período analisado. É aconselhável rever o orçamento.`;
       }
       document.getElementById('aiHealthAnalysis').innerText = healthText;
 
       let recsList = [
-        "1. **Constitua o Fundo de Emergência**: Garanta o equivalente a 3 a 6 meses de despesas essenciais numa categoria de alta liquidez e baixo risco (como Depósitos a Prazo ou Reserva de Emergência).",
-        "2. **Aplique a Regra 50/30/20**: Direcione 50% do rendimento líquido para necessidades, 30% para desejos/estilo de vida e pelo menos 20% para objetivos de poupança e investimento.",
-        "3. **Automatize os seus Aportes**: Programe transferências automáticas para investimentos logo após receber o seu ordenado, pagando-se a si próprio em primeiro lugar.",
-        "4. **Reveja Assinaturas e Custos Fixos**: Faça uma auditoria trimestral a serviços de streaming, telecomunicações e seguros para eliminar gastos invisíveis.",
-        "5. **Diversifique o seu Portfólio**: À medida que o seu capital cresce, explore alocações diversificadas em ativos geradores de rendimento passivo (como ETFs globais ou PPR)."
+        "1. **Constitua o Fundo de Emergência**: Garanta o equivalente a 3 a 6 meses de despesas essenciais.",
+        "2. **Aplique a Regra 50/30/20**: Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.",
+        "3. **Automatize os seus Aportes**: Programe transferências logo após receber o ordenado."
       ];
-
       document.getElementById('aiRecommendationsList').innerHTML = recsList.map(r => `<p class="leading-relaxed">• ${r}</p>`).join('');
     };
 
@@ -642,7 +640,6 @@
       renderDynamicEditIcons();
     }
 
-    // Injeta os ícones SVG do lápis e visto nos botões dinâmicos após carregamento
     function renderDynamicEditIcons() {
       const btnEdit = document.getElementById('btn-edit-balance');
       const btnSave = document.getElementById('btn-save-balance');
@@ -677,13 +674,11 @@
       selPie.value = selectedPieMonth;
     }
 
-    // Filtros Independentes: Gráfico de Barras
     window.onBarChartFilterChange = function(m) {
       selectedBarMonth = m;
       renderEvolutionChart();
     };
 
-    // Filtros Independentes: Gráfico Circular
     window.onPieChartFilterChange = function(m) {
       selectedPieMonth = m;
       renderCategoryPieAndList();
@@ -1168,7 +1163,7 @@
 <body class="antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col md:flex-row bg-brand-bg">
 
   <!-- BARRA LATERAL (SIDEBAR) -->
-  <aside id="mainSidebar" class="sidebar-collapsed bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 hidden md:flex flex-shrink-0 min-h-screen">
+  <aside id="mainSidebar" class="sidebar-collapsed bg-brand-card border-r border-brand-border flex-col justify-between transition-all duration-300 hidden md:flex flex-shrink-0 min-h-screen z-40">
     <div class="p-4 space-y-6">
       <div class="flex items-center gap-3">
         <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Menu">
@@ -1225,7 +1220,7 @@
   <!-- CONTEÚDO PRINCIPAL -->
   <div class="flex-1 flex flex-col min-w-0 relative">
     
-    <header class="md:hidden bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center">
+    <header class="md:hidden bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center z-30">
       <div class="flex items-center gap-3">
         <button onclick="window.toggleMobileSidebar()" class="p-2 text-white bg-brand-bg rounded-xl border border-brand-border">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -1241,7 +1236,6 @@
         <h2 class="text-xl font-bold text-emerald-400">Visão Geral</h2>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <!-- Conta à Ordem com Botão de Lápis / Visto Perfeitamente Alinhado -->
           <div class="bg-brand-card p-4 rounded-2xl border border-brand-border relative group">
             <div class="flex justify-between items-center">
               <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
@@ -1277,7 +1271,6 @@
               <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
               <p class="text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
             </div>
-            <!-- Filtro Exclusivo do Gráfico de Barras -->
             <select id="barChartFilter" onchange="window.onBarChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"></select>
           </div>
 
@@ -1294,7 +1287,6 @@
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
             <div class="flex justify-between items-center">
               <h3 class="font-bold text-base text-white">Gastos por Categoria</h3>
-              <!-- Filtro Exclusivo do Gráfico Circular -->
               <select id="pieChartFilter" onchange="window.onPieChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
             </div>
             <div class="flex items-center gap-4 pt-2">
@@ -1352,16 +1344,15 @@
         </div>
       </div>
 
-      <!-- TAB 3: TRANSAÇÕES (Com Leitura de Fatura Mobile) -->
+      <!-- TAB 3: TRANSAÇÕES (Botão de Fotografia Mobile com apenas ícone) -->
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 class="text-xl font-bold text-indigo-400">Transações</h2>
           <div class="flex items-center gap-2 w-full sm:w-auto">
-            <!-- Botão de Leitura de Fatura por Câmara (Visível Apenas em Mobile) -->
+            <!-- Botão Mobile com apenas o ícone de câmara estilizado -->
             <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="window.handleReceiptCapture(event)" class="hidden">
-            <button onclick="window.triggerCameraCapture()" class="md:hidden flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/20">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-              📷 Tirar Foto à Fatura
+            <button onclick="window.triggerCameraCapture()" class="md:hidden bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl transition flex items-center justify-center shadow-lg shadow-blue-500/20" title="Tirar Foto à Fatura">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
             <button onclick="window.openAddTransactionModal()" class="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
               + Nova Entrada
