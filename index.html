@@ -3,13 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Gestor de Finanças Pessoais</title>
+  <title>Mestre das Finanças</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
           colors: {
             brand: {
               bg: '#090d16',
@@ -26,11 +32,16 @@
     }
   </script>
   <style>
-    body { background-color: #090d16; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: #090d16; color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
     .tab-content { display: block; }
     .tab-content.hidden { display: none !important; }
-    .sidebar-expanded { width: 260px; }
-    .sidebar-collapsed { width: 80px; }
+    .sidebar-expanded { width: 260px; min-width: 260px; }
+    .sidebar-collapsed { width: 80px; min-width: 80px; }
+    
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
   </style>
 
   <script>
@@ -44,21 +55,58 @@
       }
     } catch(e) {}
 
+    const iconLibrary = {
+      wallet: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>',
+      cart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>',
+      home: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>',
+      car: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m10 0a2 2 0 104 0"></path></svg>',
+      chart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>',
+      gift: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>',
+      heart: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>',
+      briefcase: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>',
+      plane: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>',
+      book: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>',
+      cpu: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>',
+      coffee: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 8h1a4 4 0 010 8h-1m-2-8h2m-2 4h2m-6 4v3m-3-3v3m3-3h-3m2-13a4 4 0 100 8h2a4 4 0 100-8h-2z"></path></svg>',
+      film: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>',
+      music: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>',
+      phone: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>',
+      tag: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>',
+      shield: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>',
+      star: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>',
+      key: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>',
+      globe: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+    };
+
+    const editIconSvg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>';
+    const deleteIconSvg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+    const checkIconSvg = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+
     let appState = {
       initialBalance: 0.00,
+      settings: {
+        nameA: "Sujeito A",
+        nameB: "Sujeito B",
+        pctInvestment: 30,
+        pctA: 10,
+        pctB: 10,
+        extraA: 0,
+        extraB: 0
+      },
       categories: [
-        { name: "Investimento / Poupança", color: "#eab308", subcategories: ["Reserva de Emergência", "Poupança Geral", "Ações & ETFs", "PPR / Reforma", "Criptoativos", "Depósitos a Prazo"] },
-        { name: "Alimentação", color: "#10b981", subcategories: ["Supermercado", "Restaurantes", "Cafés"] },
-        { name: "Habitação", color: "#3b82f6", subcategories: ["Renda / Prestação", "Eletricidade & Gás", "Água", "Internet & TV"] },
-        { name: "Transportes", color: "#8b5cf6", subcategories: ["Combustível", "Transportes Públicos", "Manutenção"] },
-        { name: "Rendimentos", color: "#22c55e", subcategories: ["Ordenado", "Freelance", "Investimentos / Dividendos"] }
+        { name: "Investimento / Poupança", color: "#eab308", icon: "chart", subcategories: ["Reserva de Emergência", "Poupança Geral", "Ações & ETFs", "PPR / Reforma", "Criptoativos", "Depósitos a Prazo"] },
+        { name: "Alimentação", color: "#10b981", icon: "cart", subcategories: ["Supermercado", "Restaurantes", "Cafés"] },
+        { name: "Habitação", color: "#3b82f6", icon: "home", subcategories: ["Renda / Prestação", "Eletricidade & Gás", "Água", "Internet & TV"] },
+        { name: "Transportes", color: "#8b5cf6", icon: "car", subcategories: ["Combustível", "Transportes Públicos", "Manutenção"] },
+        { name: "Rendimentos", color: "#22c55e", icon: "wallet", subcategories: ["Ordenado", "Freelance", "Investimentos / Dividendos"] }
       ],
-      transactions: []
+      transactions: [],
+      forecasts: []
     };
 
     let selectedJournalMonth = 'todos';
     let selectedChartMonth = 'todos';
-    let sidebarCollapsed = false;
+    let sidebarCollapsed = true;
 
     window.toggleSidebar = function() {
       sidebarCollapsed = !sidebarCollapsed;
@@ -79,14 +127,14 @@
     window.toggleMobileSidebar = function() {
       const sb = document.getElementById('mainSidebar');
       sb.classList.toggle('hidden');
-      sb.classList.toggle('fixed');
+      sb.classList.toggle('absolute');
       sb.classList.toggle('inset-y-0');
       sb.classList.toggle('left-0');
       sb.classList.toggle('z-50');
     };
 
     window.switchTab = function(tab) {
-      ['geral', 'investimentos', 'diario', 'categorias', 'ia'].forEach(t => {
+      ['geral', 'investimentos', 'diario', 'previsibilidade', 'categorias', 'ia'].forEach(t => {
         const v = document.getElementById(`view-${t}`);
         if(v) v.classList.add('hidden');
         const navBtn = document.getElementById(`nav-${t}`);
@@ -100,7 +148,7 @@
 
       if (window.innerWidth < 768) {
         const sb = document.getElementById('mainSidebar');
-        if (!sb.classList.contains('hidden')) window.toggleMobileSidebar();
+        if (!sb.classList.contains('hidden') && sb.classList.contains('absolute')) window.toggleMobileSidebar();
       }
     };
 
@@ -133,12 +181,10 @@
 
     window.closeTxModal = function() { document.getElementById('txModal').classList.add('hidden'); };
 
-    // Filtro condicional de Categorias conforme o tipo de Transação selecionado
     window.onTxTypeChange = function() {
       const type = document.getElementById('txType').value;
       const catSelect = document.getElementById('txCategory');
       catSelect.innerHTML = '';
-
       let availableCats = [];
       if (type === 'receita') {
         availableCats = appState.categories.filter(c => c.name === "Rendimentos");
@@ -147,13 +193,8 @@
       } else {
         availableCats = appState.categories.filter(c => c.name !== "Rendimentos" && !c.name.includes("Investimento"));
       }
-
       if (availableCats.length === 0) availableCats = appState.categories;
-
-      availableCats.forEach(c => {
-        catSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`;
-      });
-
+      availableCats.forEach(c => { catSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`; });
       window.updateSubcatOptions();
     };
 
@@ -162,11 +203,7 @@
       const subSelect = document.getElementById('txSubcategory');
       subSelect.innerHTML = '';
       const cat = appState.categories.find(c => c.name === catName);
-      if (cat) {
-        cat.subcategories.forEach(s => {
-          subSelect.innerHTML += `<option value="${s}">${s}</option>`;
-        });
-      }
+      if (cat) { cat.subcategories.forEach(s => { subSelect.innerHTML += `<option value="${s}">${s}</option>`; }); }
     };
 
     window.saveTransaction = async function(e) {
@@ -188,7 +225,6 @@
       } else {
         appState.transactions.push(txData);
       }
-
       await saveData();
       window.closeTxModal();
       renderAll();
@@ -202,69 +238,222 @@
       }
     };
 
-    window.openInitialBalanceModal = function() {
-      document.getElementById('initialBalanceInput').value = appState.initialBalance || 0;
-      document.getElementById('balanceModal').classList.remove('hidden');
-    };
+    window.openForecastModal = function(id = null) {
+      document.getElementById('forecastForm').reset();
+      document.getElementById('fcId').value = "";
+      document.getElementById('fcModalTitle').innerText = "Nova Previsão";
+      document.getElementById('fcDate').value = new Date().toISOString().split('T')[0];
 
-    window.closeBalanceModal = function() {
-      document.getElementById('balanceModal').classList.add('hidden');
-    };
-
-    window.saveInitialBalance = async function(e) {
-      e.preventDefault();
-      const val = parseFloat(document.getElementById('initialBalanceInput').value) || 0;
-      appState.initialBalance = val;
-      await saveData();
-      window.closeBalanceModal();
-      renderAll();
-    };
-
-    window.openRedeemModal = function() {
-      const select = document.getElementById('redeemSubcat');
-      select.innerHTML = '';
-      const invCat = appState.categories.find(c => c.name.includes("Investimento"));
-      if (invCat) {
-        invCat.subcategories.forEach(s => {
-          select.innerHTML += `<option value="${s}">${s}</option>`;
-        });
+      if (id) {
+        const fc = (appState.forecasts || []).find(f => f.id === id);
+        if (fc) {
+          document.getElementById('fcModalTitle').innerText = "Editar Previsão";
+          document.getElementById('fcId').value = fc.id;
+          document.getElementById('fcType').value = fc.type;
+          document.getElementById('fcDate').value = fc.date;
+          document.getElementById('fcDesc').value = fc.description;
+          window.onFcTypeChange();
+          document.getElementById('fcCategory').value = fc.category;
+          window.updateFcSubcatOptions();
+          document.getElementById('fcSubcategory').value = fc.subcategory;
+          document.getElementById('fcAmount').value = fc.amount;
+        }
+      } else {
+        window.onFcTypeChange();
       }
-      document.getElementById('redeemModal').classList.remove('hidden');
+      document.getElementById('forecastModal').classList.remove('hidden');
     };
-    window.closeRedeemModal = function() { document.getElementById('redeemModal').classList.add('hidden'); };
 
-    window.executeRedeem = async function(e) {
+    window.closeForecastModal = function() { document.getElementById('forecastModal').classList.add('hidden'); };
+
+    window.onFcTypeChange = function() {
+      const type = document.getElementById('fcType').value;
+      const catSelect = document.getElementById('fcCategory');
+      catSelect.innerHTML = '';
+      let available = [];
+      if (type === 'receita') {
+        available = appState.categories.filter(c => c.name === "Rendimentos");
+      } else {
+        available = appState.categories.filter(c => c.name !== "Rendimentos" && !c.name.includes("Investimento"));
+      }
+      if(available.length === 0) available = appState.categories;
+      available.forEach(c => { catSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`; });
+      window.updateFcSubcatOptions();
+    };
+
+    window.updateFcSubcatOptions = function() {
+      const catName = document.getElementById('fcCategory').value;
+      const subSelect = document.getElementById('fcSubcategory');
+      subSelect.innerHTML = '';
+      const cat = appState.categories.find(c => c.name === catName);
+      if (cat) { cat.subcategories.forEach(s => { subSelect.innerHTML += `<option value="${s}">${s}</option>`; }); }
+    };
+
+    window.saveForecast = async function(e) {
       e.preventDefault();
-      const subcat = document.getElementById('redeemSubcat').value;
-      const amount = parseFloat(document.getElementById('redeemAmount').value) || 0;
-      const note = document.getElementById('redeemNote').value || 'Resgate de Investimento';
+      const id = document.getElementById('fcId').value;
+      const fcData = {
+        id: id || Date.now().toString(),
+        type: document.getElementById('fcType').value,
+        date: document.getElementById('fcDate').value,
+        description: document.getElementById('fcDesc').value,
+        category: document.getElementById('fcCategory').value,
+        subcategory: document.getElementById('fcSubcategory').value,
+        amount: parseFloat(document.getElementById('fcAmount').value) || 0,
+        paid: false
+      };
 
-      appState.transactions.push({
-        id: Date.now().toString(),
-        type: 'receita',
-        date: new Date().toISOString().split('T')[0],
-        description: `Resgate (${subcat}): ${note}`,
-        category: 'Rendimentos',
-        subcategory: 'Investimentos / Dividendos',
-        amount: amount
-      });
+      if (!appState.forecasts) appState.forecasts = [];
+      if (id) {
+        const idx = appState.forecasts.findIndex(f => f.id === id);
+        if (idx !== -1) {
+          fcData.paid = appState.forecasts[idx].paid;
+          appState.forecasts[idx] = fcData;
+        }
+      } else {
+        appState.forecasts.push(fcData);
+      }
 
       await saveData();
-      window.closeRedeemModal();
+      window.closeForecastModal();
       renderAll();
     };
 
-    window.openNewCategoryModal = function() { document.getElementById('catModal').classList.remove('hidden'); };
-    window.closeCatModal = function() { document.getElementById('catModal').classList.add('hidden'); };
+    window.deleteForecast = async function(id) {
+      appState.forecasts = (appState.forecasts || []).filter(f => f.id !== id);
+      await saveData();
+      renderAll();
+    };
 
+    window.toggleForecastPaid = async function(id) {
+      const fc = (appState.forecasts || []).find(f => f.id === id);
+      if (!fc) return;
+      fc.paid = !fc.paid;
+      
+      if (fc.paid) {
+        appState.transactions.push({
+          id: 'tx_fc_' + fc.id,
+          type: fc.type,
+          date: fc.date,
+          description: fc.description,
+          category: fc.category,
+          subcategory: fc.subcategory,
+          amount: fc.amount
+        });
+      } else {
+        appState.transactions = appState.transactions.filter(t => t.id !== 'tx_fc_' + fc.id);
+      }
+
+      await saveData();
+      renderAll();
+    };
+
+    window.toggleEditMode = function(id) {
+      const displayEl = document.getElementById(`view-${id}`);
+      const editEl = document.getElementById(`edit-${id}`);
+      if(displayEl && editEl) {
+        displayEl.classList.toggle('hidden');
+        editEl.classList.toggle('hidden');
+      }
+    };
+
+    window.saveFieldEdit = async function(field, inputId) {
+      const input = document.getElementById(inputId);
+      if(!input) return;
+      let val = input.value;
+      if (field !== 'nameA' && field !== 'nameB') {
+        val = parseFloat(val) || 0;
+      }
+      if(!appState.settings) appState.settings = {};
+      appState.settings[field] = val;
+      await saveData();
+      renderAll();
+    };
+
+    // Função corrigida para alternar perfeitamente a edição e trancagem do saldo da Conta à Ordem
+    window.toggleBalanceEdit = function(isEditing) {
+      const vDisp = document.getElementById('kpiSaldoDisplay');
+      const iWrap = document.getElementById('input-balance-wrap');
+      const btnEdit = document.getElementById('btn-edit-balance');
+      const btnSave = document.getElementById('btn-save-balance');
+
+      if (isEditing) {
+        document.getElementById('input-balance').value = appState.initialBalance || 0;
+        vDisp.classList.add('hidden');
+        iWrap.classList.remove('hidden');
+        btnEdit.classList.add('hidden');
+        btnSave.classList.remove('hidden');
+      } else {
+        const val = parseFloat(document.getElementById('input-balance').value) || 0;
+        appState.initialBalance = val;
+        saveData();
+        vDisp.classList.remove('hidden');
+        iWrap.classList.add('hidden');
+        btnEdit.classList.remove('hidden');
+        btnSave.classList.add('hidden');
+        renderAll();
+      }
+    };
+
+    window.openNewCategoryModal = function(idx = null) {
+      const container = document.getElementById('iconSelectorContainer');
+      container.innerHTML = '';
+      
+      document.getElementById('catEditIdx').value = idx !== null ? idx : "";
+      document.getElementById('catModalTitle').innerText = idx !== null ? "Editar Categoria" : "Nova Categoria";
+
+      let currentIcon = 'tag';
+      let currentName = '';
+      let currentColor = '#10b981';
+      let currentSubcats = '';
+
+      if (idx !== null) {
+        const cat = appState.categories[idx];
+        if (cat) {
+          currentName = cat.name;
+          currentColor = cat.color || '#10b981';
+          currentIcon = cat.icon || 'tag';
+          currentSubcats = cat.subcategories ? cat.subcategories.join(', ') : '';
+        }
+      }
+
+      document.getElementById('catName').value = currentName;
+      document.getElementById('catColor').value = currentColor;
+      document.getElementById('catSubcats').value = currentSubcats;
+
+      Object.keys(iconLibrary).forEach(key => {
+        const isChecked = key === currentIcon ? 'checked' : '';
+        container.innerHTML += `
+          <label class="flex items-center justify-center p-2 rounded-xl border border-brand-border bg-brand-bg cursor-pointer hover:border-emerald-500 transition">
+            <input type="radio" name="catIcon" value="${key}" ${isChecked} class="hidden peer">
+            <div class="text-brand-gray peer-checked:text-emerald-400 peer-checked:scale-110 transition">${iconLibrary[key]}</div>
+          </label>
+        `;
+      });
+      document.getElementById('catModal').classList.remove('hidden');
+    };
+
+    window.closeCatModal = function() { document.getElementById('catModal').classList.add('hidden'); };
+    
     window.saveCategory = async function(e) {
       e.preventDefault();
+      const idx = document.getElementById('catEditIdx').value;
       const name = document.getElementById('catName').value;
       const color = document.getElementById('catColor').value;
       const subStr = document.getElementById('catSubcats').value;
       const subcategories = subStr ? subStr.split(',').map(s => s.trim()) : ["Geral"];
+      
+      const selectedIconEl = document.querySelector('input[name="catIcon"]:checked');
+      const icon = selectedIconEl ? selectedIconEl.value : 'tag';
 
-      appState.categories.push({ name, color, subcategories });
+      const catData = { name, color, icon, subcategories };
+
+      if (idx !== "" && !isNaN(idx)) {
+        appState.categories[parseInt(idx)] = catData;
+      } else {
+        appState.categories.push(catData);
+      }
+
       await saveData();
       window.closeCatModal();
       renderAll();
@@ -279,7 +468,6 @@
     };
 
     window.openImportModal = function() { document.getElementById('importFile').click(); };
-
     window.handleFileImport = async function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -310,11 +498,12 @@
         });
         await saveData();
         renderAll();
-        alert(`${count} transações importadas com sucesso!`);
+        alert(`${count} transações importadas com sucesso![cite: 1]`);
       };
       reader.readAsText(file);
     };
 
+    // Inteligência Artificial & Insights com os 2 Tópicos Solicitados
     window.runAIAnalysis = function() {
       let totalRec = 0, totalDesp = 0, totalInv = 0;
       appState.transactions.forEach(t => {
@@ -324,11 +513,28 @@
       });
 
       const savingsRate = totalRec > 0 ? (((totalRec - totalDesp) / totalRec) * 100).toFixed(1) : 0;
-      const invRate = totalRec > 0 ? ((totalInv / totalRec) * 100).toFixed(1) : 0;
+      
+      // Tópico 1: Análise da saúde financeira
+      let healthText = "";
+      if (savingsRate >= 20) {
+        healthText = `A sua saúde financeira está excelente! Apresenta uma taxa de retenção líquida de ${savingsRate}%, o que cumpre e supera as melhores práticas de literacia financeira (regra 50/30/20). O seu fluxo de caixa é positivo e demonstra forte capacidade de poupança.`;
+      } else if (savingsRate > 0) {
+        healthText = `A sua saúde financeira é moderada. A taxa de retenção líquida atual situa-se nos ${savingsRate}%. Existe margem para otimizar despesas discricionárias de forma a reforçar a sua almofada financeira de curto prazo.`;
+      } else {
+        healthText = `Atenção à saúde financeira: as despesas e investimentos superam temporariamente as receitas registadas no período. É aconselhável rever o orçamento e focar na contenção de custos fixos.`;
+      }
+      document.getElementById('aiHealthAnalysis').innerText = healthText;
 
-      document.getElementById('aiSavingsRate').innerText = `Taxa de retenção líquida: ${savingsRate}% | Alocação a Investimento: ${invRate}%.`;
-      document.getElementById('aiRule503020').innerText = `Análise efetuada com base no histórico atual do diário de transações.`;
-      document.getElementById('aiRecommendations').innerHTML = `<p>• Adiciona mais transações diárias para obter relatórios cada vez mais detalhados.</p>`;
+      // Tópico 2: Até 5 Recomendações financeiras baseadas em literacia financeira
+      let recsList = [
+        "1. **Constitua o Fundo de Emergência**: Garanta o equivalente a 3 a 6 meses de despesas essenciais numa categoria de alta liquidez e baixo risco (como Depósitos a Prazo ou Reserva de Emergência).",
+        "2. **Aplique a Regra 50/30/20**: Direcione 50% do rendimento líquido para necessidades, 30% para desejos/estilo de vida e pelo menos 20% para objetivos de poupança e investimento.",
+        "3. **Automatize os seus Aportes**: Programe transferências automáticas para investimentos logo após receber o seu ordenado, pagando-se a si próprio em primeiro lugar.",
+        "4. **Reveja Assinaturas e Custos Fixos**: Faça uma auditoria trimestral a serviços de streaming, telecomunicações e seguros para eliminar gastos invisíveis.",
+        "5. **Diversifique o seu Portfólio**: À medida que o seu capital cresce, explore alocações diversificadas em ativos geradores de rendimento passivo (como ETFs globais ou PPR)."
+      ];
+
+      document.getElementById('aiRecommendationsList').innerHTML = recsList.map(r => `<p class="leading-relaxed">• ${r}</p>`).join('');
     };
 
     async function loadData() {
@@ -357,6 +563,7 @@
       renderRecent();
       renderJournalFilterButtons();
       renderJournal();
+      renderForecasts();
       renderCategories();
       renderInvestments();
       renderInvestmentLineChart();
@@ -369,11 +576,8 @@
         if(t.type==='despesa') desp += t.amount;
         if(t.type==='investimento') inv += t.amount;
       });
-
-      const initBal = appState.initialBalance || 0;
-      const finalBal = initBal + rec - desp - inv;
-
-      document.getElementById('kpiSaldo').innerText = formatEUR(finalBal);
+      const finalBal = (appState.initialBalance || 0) + rec - desp - inv;
+      document.getElementById('kpiSaldoDisplay').innerText = formatEUR(finalBal);
       document.getElementById('kpiReceitas').innerText = formatEUR(rec);
       document.getElementById('kpiDespesas').innerText = formatEUR(desp);
       document.getElementById('kpiInvestimento').innerText = formatEUR(inv);
@@ -383,17 +587,11 @@
       const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
       const selBar = document.getElementById('barChartFilter');
       const selPie = document.getElementById('pieChartFilter');
-
       if (!selBar || !selPie) return;
-
       let options = `<option value="todos">Todos os Períodos</option>`;
-      months.forEach(m => {
-        options += `<option value="${m}">${m}</option>`;
-      });
-
+      months.forEach(m => { options += `<option value="${m}">${m}</option>`; });
       selBar.innerHTML = options;
       selPie.innerHTML = options;
-
       selBar.value = selectedChartMonth;
       selPie.value = selectedChartMonth;
     }
@@ -410,14 +608,11 @@
       const container = document.getElementById('evolutionChartContainer');
       if(!container) return;
       container.innerHTML = '';
-
       let groupedData = {};
       let txs = appState.transactions;
-
       if (selectedChartMonth !== 'todos') {
         txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
       }
-
       txs.forEach(tx => {
         const m = tx.date.substring(0, 7);
         if (!groupedData[m]) groupedData[m] = { rec: 0, desp: 0, inv: 0 };
@@ -425,24 +620,18 @@
         if (tx.type === 'despesa') groupedData[m].desp += tx.amount;
         if (tx.type === 'investimento') groupedData[m].inv += tx.amount;
       });
-
       const keys = Object.keys(groupedData).sort();
       if (keys.length === 0) {
         container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem transações registadas para este período.</p>`;
         return;
       }
-
       let maxVal = 100;
-      keys.forEach(k => {
-        maxVal = Math.max(maxVal, groupedData[k].rec, groupedData[k].desp, groupedData[k].inv);
-      });
-
+      keys.forEach(k => { maxVal = Math.max(maxVal, groupedData[k].rec, groupedData[k].desp, groupedData[k].inv); });
       keys.forEach(k => {
         const item = groupedData[k];
         const hRec = Math.max(4, (item.rec / maxVal) * 100);
         const hDesp = Math.max(4, (item.desp / maxVal) * 100);
         const hInv = Math.max(4, (item.inv / maxVal) * 100);
-
         container.innerHTML += `
           <div class="flex-1 flex flex-col items-center gap-1 h-full justify-end">
             <div class="w-full flex items-end justify-center gap-1 h-36">
@@ -456,11 +645,11 @@
       });
     }
 
+    // Legenda do Gráfico Circular com Ícones e SEM a bola de cor (cor assumida na barra)
     function renderCategoryPieAndList() {
       const listEl = document.getElementById('categoryBreakdownList');
       const pieSvg = document.getElementById('categoryPieSvg');
       if (!listEl || !pieSvg) return;
-
       listEl.innerHTML = '';
       pieSvg.innerHTML = '';
 
@@ -469,30 +658,25 @@
         txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
       }
 
-      let subcatTotals = {};
+      let catTotals = {};
       let totalDesp = 0;
-
       txs.forEach(t => {
-        const key = `${t.category} > ${t.subcategory || 'Geral'}`;
-        subcatTotals[key] = (subcatTotals[key] || 0) + t.amount;
+        catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
         totalDesp += t.amount;
       });
 
       if (totalDesp === 0) {
-        listEl.innerHTML = `<p class="text-xs text-brand-gray">Sem despesas registadas no período selecionado.</p>`;
+        listEl.innerHTML = `<p class="text-xs text-brand-gray">Sem despesas registadas no período.</p>`;
         pieSvg.innerHTML = `<circle cx="16" cy="16" r="15.915" fill="none" stroke="#1e293b" stroke-width="4" />`;
         return;
       }
 
       let cumulativePct = 0;
-      const keys = Object.keys(subcatTotals);
-
-      keys.forEach(key => {
-        const amt = subcatTotals[key];
+      Object.keys(catTotals).forEach(catName => {
+        const amt = catTotals[catName];
         const pct = (amt / totalDesp) * 100;
-        const catName = key.split(' > ')[0];
-        const catObj = appState.categories.find(c => c.name === catName) || { color: '#94a3b8' };
-
+        const catObj = appState.categories.find(c => c.name === catName) || { icon: 'tag', color: '#94a3b8' };
+        const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
         const strokeDasharray = `${pct} ${100 - pct}`;
         const strokeDashoffset = 100 - cumulativePct + 25;
         cumulativePct += pct;
@@ -508,8 +692,8 @@
         listEl.innerHTML += `
           <div class="space-y-1">
             <div class="flex justify-between text-xs">
-              <span class="text-white flex items-center gap-1.5 truncate max-w-[180px]">
-                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${catObj.color}"></span> ${key}
+              <span class="text-white flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">${svgIcon}</span> ${catName}
               </span>
               <span class="text-brand-gray font-medium">${formatEUR(amt)} (${pct.toFixed(1)}%)</span>
             </div>
@@ -528,28 +712,37 @@
           el.innerHTML = `<p class="text-xs text-brand-gray">Sem atividades recentes.</p>`;
           return;
         }
-        el.innerHTML = [...appState.transactions].reverse().slice(0, 4).map(t => `
-          <div class="flex justify-between items-center py-2 border-b border-brand-border/50 text-xs">
-            <div><p class="font-semibold text-white">${t.description}</p><p class="text-[10px] text-brand-gray">${t.date} • ${t.category}</p></div>
-            <span class="font-bold ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
-          </div>
-        `).join('');
+        const recentTxs = [...appState.transactions].reverse().slice(0, 15);
+        el.innerHTML = recentTxs.map(t => {
+          const catObj = appState.categories.find(c => c.name === t.category) || { icon: 'tag', color: '#94a3b8' };
+          const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          return `
+            <div class="flex justify-between items-center py-2.5 border-b border-brand-border/50 text-xs">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">
+                  ${svgIcon}
+                </div>
+                <div>
+                  <p class="font-semibold text-white">${t.description}</p>
+                  <p class="text-[10px] text-brand-gray">${t.date} • ${t.category}</p>
+                </div>
+              </div>
+              <span class="font-bold ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
+            </div>
+          `;
+        }).join('');
       }
     }
 
     function renderJournalFilterButtons() {
       const container = document.getElementById('journalMonthButtons');
       if (!container) return;
-
       const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
-      
       let html = `<button onclick="window.filterJournalByMonth('todos')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${selectedJournalMonth === 'todos' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">Todos</button>`;
-
       months.forEach(m => {
         const active = selectedJournalMonth === m;
         html += `<button onclick="window.filterJournalByMonth('${m}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${active ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">${m}</button>`;
       });
-
       container.innerHTML = html;
     }
 
@@ -567,47 +760,224 @@
         if (selectedJournalMonth !== 'todos') {
           filtered = filtered.filter(t => t.date.startsWith(selectedJournalMonth));
         }
-
         if (filtered.length === 0) {
-          el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma transação registada para este filtro.</p>`;
+          el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma transação registada.</p>`;
           if(countEl) countEl.innerText = "0 registos";
           return;
         }
-
         if(countEl) countEl.innerText = `${filtered.length} registos`;
-        el.innerHTML = [...filtered].reverse().map(t => `
-          <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
-            <div>
-              <p class="font-semibold text-white text-sm">${t.description}</p>
-              <p class="text-[11px] text-brand-gray">${t.date} • <span class="text-slate-300">${t.category}</span> (${t.subcategory || 'Geral'})</p>
+        el.innerHTML = [...filtered].reverse().map(t => {
+          const catObj = appState.categories.find(c => c.name === t.category) || { icon: 'tag', color: '#94a3b8' };
+          const svgIcon = iconLibrary[catObj.icon] || iconLibrary['tag'];
+          return `
+            <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">
+                  ${svgIcon}
+                </div>
+                <div>
+                  <p class="font-semibold text-white text-sm">${t.description}</p>
+                  <p class="text-[11px] text-brand-gray">${t.date} • <span class="text-slate-300">${t.category}</span> (${t.subcategory || 'Geral'})</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="font-bold text-sm ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
+                <button onclick="window.editTransaction('${t.id}')" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar">${editIconSvg}</button>
+                <button onclick="window.deleteTransaction('${t.id}')" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Eliminar">${deleteIconSvg}</button>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
-              <button onclick="window.editTransaction('${t.id}')" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border">✏️</button>
-              <button onclick="window.deleteTransaction('${t.id}')" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border">🗑️</button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
     };
+
+    function renderForecasts() {
+      const el = document.getElementById('forecastList');
+      const statsEl = document.getElementById('forecastStats');
+      if (!el) return;
+
+      const settings = appState.settings || { nameA: "Sujeito A", nameB: "Sujeito B", pctInvestment: 30, pctA: 10, pctB: 10, extraA: 0, extraB: 0 };
+      const forecasts = appState.forecasts || [];
+      let totalPrevRec = 0, totalPrevDesp = 0;
+      forecasts.forEach(f => {
+        if (f.type === 'receita') totalPrevRec += f.amount;
+        else if (f.type === 'despesa') totalPrevDesp += f.amount;
+      });
+
+      const excedente = totalPrevRec - totalPrevDesp;
+      const valInvestimento = totalPrevRec * (settings.pctInvestment / 100);
+      const valA = (totalPrevRec * (settings.pctA / 100)) + settings.extraA;
+      const valB = (totalPrevRec * (settings.pctB / 100)) + settings.extraB;
+
+      if(statsEl) {
+        statsEl.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
+              <p class="text-[11px] text-brand-gray">Rendimento Previsto</p>
+              <p class="text-base font-bold text-emerald-400">${formatEUR(totalPrevRec)}</p>
+            </div>
+            <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
+              <p class="text-[11px] text-brand-gray">Contas Previstas</p>
+              <p class="text-base font-bold text-red-400">${formatEUR(totalPrevDesp)}</p>
+            </div>
+            <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
+              <p class="text-[11px] text-brand-gray">Excedente Líquido</p>
+              <p class="text-base font-bold text-white">${formatEUR(excedente)}</p>
+            </div>
+            <div class="bg-brand-bg p-3 rounded-xl border border-brand-border flex items-center justify-between">
+              <div>
+                <p class="text-[11px] text-brand-gray">Investimento</p>
+                <p class="text-base font-bold text-amber-400">${formatEUR(valInvestimento)}</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <div id="view-pctInv" class="flex items-center gap-1">
+                  <span class="text-xs font-bold text-white">${settings.pctInvestment}%</span>
+                  <button onclick="window.toggleEditMode('pctInv')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
+                </div>
+                <div id="edit-pctInv" class="hidden flex items-center gap-1">
+                  <input type="number" id="input-pctInv" value="${settings.pctInvestment}" class="w-12 bg-brand-card border border-brand-border rounded p-1 text-center text-xs text-white">
+                  <button onclick="window.saveFieldEdit('pctInvestment', 'input-pctInv'); window.toggleEditMode('pctInv');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <!-- Sujeito A -->
+            <div class="bg-brand-bg p-4 rounded-xl border border-brand-border space-y-3">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <div id="view-nameA" class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-blue-400">${settings.nameA}</span>
+                    <button onclick="window.toggleEditMode('nameA')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-nameA" class="hidden flex items-center gap-1">
+                    <input type="text" id="input-nameA" value="${settings.nameA}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-blue-400 w-28">
+                    <button onclick="window.saveFieldEdit('nameA', 'input-nameA'); window.toggleEditMode('nameA');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
+                  </div>
+                </div>
+                <span class="text-sm font-bold text-white">${formatEUR(valA)}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-brand-gray">
+                <div class="flex items-center gap-1">
+                  <span>Distr.:</span>
+                  <div id="view-pctA" class="flex items-center gap-1 inline-flex">
+                    <span class="font-semibold text-white">${settings.pctA}%</span>
+                    <button onclick="window.toggleEditMode('pctA')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-pctA" class="hidden flex items-center gap-1">
+                    <input type="number" step="0.1" id="input-pctA" value="${settings.pctA}" class="w-14 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
+                    <button onclick="window.saveFieldEdit('pctA', 'input-pctA'); window.toggleEditMode('pctA');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span>Extra:</span>
+                  <div id="view-extraA" class="flex items-center gap-1 inline-flex">
+                    <span class="font-semibold text-white">${formatEUR(settings.extraA)}</span>
+                    <button onclick="window.toggleEditMode('extraA')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-extraA" class="hidden flex items-center gap-1">
+                    <input type="number" step="0.01" id="input-extraA" value="${settings.extraA}" class="w-16 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
+                    <button onclick="window.saveFieldEdit('extraA', 'input-extraA'); window.toggleEditMode('extraA');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sujeito B -->
+            <div class="bg-brand-bg p-4 rounded-xl border border-brand-border space-y-3">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <div id="view-nameB" class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-purple-400">${settings.nameB}</span>
+                    <button onclick="window.toggleEditMode('nameB')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-nameB" class="hidden flex items-center gap-1">
+                    <input type="text" id="input-nameB" value="${settings.nameB}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-purple-400 w-28">
+                    <button onclick="window.saveFieldEdit('nameB', 'input-nameB'); window.toggleEditMode('nameB');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
+                  </div>
+                </div>
+                <span class="text-sm font-bold text-white">${formatEUR(valB)}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs text-brand-gray">
+                <div class="flex items-center gap-1">
+                  <span>Distr.:</span>
+                  <div id="view-pctB" class="flex items-center gap-1 inline-flex">
+                    <span class="font-semibold text-white">${settings.pctB}%</span>
+                    <button onclick="window.toggleEditMode('pctB')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-pctB" class="hidden flex items-center gap-1">
+                    <input type="number" step="0.1" id="input-pctB" value="${settings.pctB}" class="w-14 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
+                    <button onclick="window.saveFieldEdit('pctB', 'input-pctB'); window.toggleEditMode('pctB');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span>Extra:</span>
+                  <div id="view-extraB" class="flex items-center gap-1 inline-flex">
+                    <span class="font-semibold text-white">${formatEUR(settings.extraB)}</span>
+                    <button onclick="window.toggleEditMode('extraB')" class="p-0.5 text-brand-gray hover:text-white">${editIconSvg}</button>
+                  </div>
+                  <div id="edit-extraB" class="hidden flex items-center gap-1">
+                    <input type="number" step="0.01" id="input-extraB" value="${settings.extraB}" class="w-16 bg-brand-card border border-brand-border rounded p-0.5 text-center text-white">
+                    <button onclick="window.saveFieldEdit('extraB', 'input-extraB'); window.toggleEditMode('extraB');" class="p-0.5 text-emerald-400">${checkIconSvg}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (forecasts.length === 0) {
+        el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma previsão registada.</p>`;
+        return;
+      }
+
+      el.innerHTML = forecasts.map(f => `
+        <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
+          <div class="flex items-center gap-3">
+            <button onclick="window.toggleForecastPaid('${f.id}')" class="w-6 h-6 rounded-lg border ${f.paid ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-brand-border bg-brand-bg'} flex items-center justify-center text-[11px]" title="Confirmar pagamento / passar à Visão Geral">
+              ${f.paid ? '✓' : ''}
+            </button>
+            <div>
+              <p class="font-semibold text-white text-sm ${f.paid ? 'line-through text-brand-gray' : ''}">${f.description}</p>
+              <p class="text-[11px] text-brand-gray">${f.date} • <span class="text-slate-300">${f.category}</span> (${f.subcategory || 'Geral'}) — <span class="${f.paid ? 'text-emerald-400 font-medium' : 'text-amber-400'}">${f.paid ? 'Pago / Confirmado' : 'Pendente'}</span></p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-sm ${f.type==='receita'?'text-emerald-400':'text-red-400'}">€${f.amount.toFixed(2)}</span>
+            <button onclick="window.openForecastModal('${f.id}')" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar">${editIconSvg}</button>
+            <button onclick="window.deleteForecast('${f.id}')" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Eliminar">${deleteIconSvg}</button>
+          </div>
+        </div>
+      `).join('');
+    }
 
     function renderCategories() {
       const el = document.getElementById('categoriesContainer');
       if(el) {
-        el.innerHTML = appState.categories.map((c, idx) => `
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border space-y-3">
-            <div class="flex justify-between items-center border-b border-brand-border pb-2">
-              <span class="font-bold text-white text-sm flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full" style="background-color: ${c.color}"></span>
-                ${c.name}
-              </span>
-              <button onclick="window.deleteCategory(${idx})" class="text-xs text-red-400 hover:text-red-300">Apagar</button>
+        el.innerHTML = appState.categories.map((c, idx) => {
+          const svgIcon = iconLibrary[c.icon] || iconLibrary['tag'];
+          return `
+            <div class="bg-brand-card p-4 rounded-2xl border border-brand-border space-y-3">
+              <div class="flex justify-between items-center border-b border-brand-border pb-2">
+                <span class="font-bold text-white text-sm flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg flex items-center justify-center" style="background-color: ${c.color}20; color: ${c.color}">
+                    ${svgIcon}
+                  </span>
+                  ${c.name}
+                </span>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="window.openNewCategoryModal(${idx})" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar Categoria">${editIconSvg}</button>
+                  <button onclick="window.deleteCategory(${idx})" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Apagar">${deleteIconSvg}</button>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                ${c.subcategories.map(s => `<span class="bg-brand-bg border border-brand-border px-2.5 py-1 rounded-lg text-[11px] text-brand-gray">${s}</span>`).join('')}
+              </div>
             </div>
-            <div class="flex flex-wrap gap-1.5">
-              ${c.subcategories.map(s => `<span class="bg-brand-bg border border-brand-border px-2.5 py-1 rounded-lg text-[11px] text-brand-gray">${s}</span>`).join('')}
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
     }
 
@@ -650,44 +1020,36 @@
       }
     }
 
-    // Gráfico de Linhas para Investimentos
     function renderInvestmentLineChart() {
       const container = document.getElementById('invLineChartContainer');
       if (!container) return;
       container.innerHTML = '';
-
       let cumulativeData = {};
       let runningTotal = 0;
-
       const sortedTxs = [...appState.transactions]
         .filter(t => t.type === 'investimento' || (t.type === 'receita' && t.description.includes("Resgate")))
         .sort((a,b) => new Date(a.date) - new Date(b.date));
 
       if (sortedTxs.length === 0) {
-        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem histórico de investimentos registado.</p>`;
+        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem histórico de investimentos.</p>`;
         return;
       }
-
       sortedTxs.forEach(t => {
         const m = t.date.substring(0, 7);
         if (t.type === 'investimento') runningTotal += t.amount;
         else if (t.type === 'receita') runningTotal -= t.amount;
         cumulativeData[m] = runningTotal;
       });
-
       const keys = Object.keys(cumulativeData);
       const points = keys.map(k => cumulativeData[k]);
       const maxVal = Math.max(...points, 100);
-
       let polylinePoints = "";
       const step = keys.length > 1 ? 280 / (keys.length - 1) : 140;
-
       keys.forEach((k, idx) => {
         const x = 10 + (idx * step);
         const y = 90 - ((cumulativeData[k] / maxVal) * 75);
         polylinePoints += `${x},${y} `;
       });
-
       container.innerHTML = `
         <svg viewBox="0 0 300 100" class="w-full h-36 overflow-visible">
           <polyline fill="none" stroke="#eab308" stroke-width="3" points="${polylinePoints}" />
@@ -711,77 +1073,104 @@
       if(dateEl) dateEl.value = new Date().toISOString().split('T')[0];
       await loadData();
       renderAll();
+      const sb = document.getElementById('mainSidebar');
+      const labels = document.querySelectorAll('.sidebar-label');
+      sb.classList.remove('sidebar-expanded');
+      sb.classList.add('sidebar-collapsed');
+      labels.forEach(l => l.classList.add('hidden'));
     });
   </script>
 </head>
 <body class="antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col md:flex-row bg-brand-bg">
 
   <!-- BARRA LATERAL (SIDEBAR) -->
-  <aside id="mainSidebar" class="sidebar-expanded bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 hidden md:flex flex-shrink-0 min-h-screen">
+  <aside id="mainSidebar" class="sidebar-collapsed bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 hidden md:flex flex-shrink-0 min-h-screen">
     <div class="p-4 space-y-6">
-      <!-- Logo € Minimizar / Maximizar -->
       <div class="flex items-center gap-3">
-        <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Sidebar">
+        <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Menu">
           €
         </button>
-        <span class="font-bold text-lg text-white sidebar-label truncate">Finanças</span>
+        <span class="font-bold text-sm tracking-wider uppercase text-brand-gray sidebar-label truncate hidden">Menu</span>
       </div>
 
-      <!-- Navigation Links -->
-      <nav class="space-y-1">
-        <button onclick="window.switchTab('geral')" id="nav-geral" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left">
-          <span>📊</span><span class="sidebar-label text-sm">Visão Geral</span>
-        </button>
-        <button onclick="window.switchTab('investimentos')" id="nav-investimentos" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
-          <span>📈</span><span class="sidebar-label text-sm">Investimentos</span>
-        </button>
-        <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
-          <span>📖</span><span class="sidebar-label text-sm">Diário Transações</span>
-        </button>
-        <button onclick="window.switchTab('categorias')" id="nav-categorias" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
-          <span>🏷️</span><span class="sidebar-label text-sm">Categorias</span>
-        </button>
-        <button onclick="window.switchTab('ia')" id="nav-ia" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
-          <span>🤖</span><span class="sidebar-label text-sm">Relatórios & IA</span>
-        </button>
+      <nav class="space-y-6">
+        <div class="space-y-1">
+          <button onclick="window.switchTab('geral')" id="nav-geral" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+            <span class="sidebar-label text-sm hidden">Visão Geral</span>
+          </button>
+          <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            <span class="sidebar-label text-sm hidden">Transações</span>
+          </button>
+        </div>
+
+        <div class="space-y-1 pt-2 border-t border-brand-border/40">
+          <button onclick="window.switchTab('previsibilidade')" id="nav-previsibilidade" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span class="sidebar-label text-sm hidden">Previsibilidade</span>
+          </button>
+          <button onclick="window.switchTab('investimentos')" id="nav-investimentos" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+            <span class="sidebar-label text-sm hidden">Investimentos</span>
+          </button>
+        </div>
+
+        <div class="space-y-1 pt-2 border-t border-brand-border/40">
+          <button onclick="window.switchTab('categorias')" id="nav-categorias" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+            <span class="sidebar-label text-sm hidden">Categorias</span>
+          </button>
+          <button onclick="window.switchTab('ia')" id="nav-ia" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+            <span class="sidebar-label text-sm hidden">Relatórios & IA</span>
+          </button>
+        </div>
       </nav>
     </div>
 
-    <!-- Importar no Fundo da Sidebar -->
     <div class="p-4 border-t border-brand-border">
       <input type="file" id="importFile" onchange="window.handleFileImport(event)" accept=".csv,.txt" class="hidden">
-      <button onclick="window.openImportModal()" class="w-full bg-brand-border hover:bg-slate-700 text-xs font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 border border-slate-600">
-        <span>📥</span><span class="sidebar-label">Importar Ficheiro</span>
+      <button onclick="window.openImportModal()" class="w-full bg-brand-border hover:bg-slate-700 text-xs font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 border border-slate-600 text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+        <span class="sidebar-label hidden">Importar Ficheiro[cite: 1]</span>
       </button>
     </div>
   </aside>
 
   <!-- CONTEÚDO PRINCIPAL -->
-  <div class="flex-1 flex flex-col min-w-0">
+  <div class="flex-1 flex flex-col min-w-0 relative">
     
-    <!-- Topbar para Telemóvel -->
     <header class="md:hidden bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center">
-      <div class="flex items-center gap-2">
-        <button onclick="window.toggleMobileSidebar()" class="p-1.5 text-white bg-brand-bg rounded-lg border border-brand-border">☰</button>
-        <span class="font-bold text-white text-base">Finanças Pessoais</span>
+      <div class="flex items-center gap-3">
+        <button onclick="window.toggleMobileSidebar()" class="p-2 text-white bg-brand-bg rounded-xl border border-brand-border">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <span class="font-bold text-white text-base">Mestre das Finanças</span>
       </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="p-4 sm:p-6 space-y-6 flex-grow">
 
       <!-- TAB 1: VISÃO GERAL -->
       <div id="view-geral" class="tab-content space-y-6">
-        <h2 class="text-xl font-bold">Resumo Financeiro</h2>
+        <h2 class="text-xl font-bold text-emerald-400">Visão Geral</h2>
 
-        <!-- KPI Cards -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div onclick="window.openInitialBalanceModal()" class="bg-brand-card p-4 rounded-2xl border border-brand-border cursor-pointer hover:border-emerald-500/50 transition relative group">
+          <!-- Conta à Ordem com Edição e Trancagem Corrigida -->
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border relative group">
             <div class="flex justify-between items-center">
               <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
-              <span class="text-[10px] text-emerald-400 opacity-80 group-hover:opacity-100">✏️</span>
+              <div class="flex items-center gap-1">
+                <button id="btn-edit-balance" onclick="window.toggleBalanceEdit(true)" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar Saldo">${editIconSvg}</button>
+                <button id="btn-save-balance" onclick="window.toggleBalanceEdit(false)" class="p-1.5 text-emerald-400 bg-brand-bg rounded-lg border border-brand-border hidden" title="Guardar & Trancar">${checkIconSvg}</button>
+              </div>
             </div>
-            <p id="kpiSaldo" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
+            
+            <div id="kpiSaldoDisplay" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</div>
+            <div id="input-balance-wrap" class="hidden mt-1">
+              <input type="number" step="0.01" id="input-balance" class="w-full bg-brand-bg border border-brand-border rounded p-1 text-sm font-bold text-white">
+            </div>
           </div>
 
           <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
@@ -798,7 +1187,6 @@
           </div>
         </div>
 
-        <!-- Gráfico Evolução Financeira -->
         <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -817,11 +1205,10 @@
           </div>
         </div>
 
-        <!-- Distribuição por Categoria & Subcategoria (Gráfico Queijo) & Recentes -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
             <div class="flex justify-between items-center">
-              <h3 class="font-bold text-base text-white">Gastos por Categoria / Subcategoria</h3>
+              <h3 class="font-bold text-base text-white">Gastos por Categoria</h3>
               <select id="pieChartFilter" onchange="window.onChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
             </div>
             <div class="flex items-center gap-4 pt-2">
@@ -833,8 +1220,8 @@
           </div>
 
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-            <h3 class="font-bold text-base text-white">Atividades Recentes</h3>
-            <div id="recentTransactionsList" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            <h3 class="font-bold text-base text-white">Atividades Recentes (Últimos 15)</h3>
+            <div id="recentTransactionsList" class="space-y-1.5 max-h-64 overflow-y-auto pr-1"></div>
           </div>
         </div>
       </div>
@@ -843,9 +1230,7 @@
       <div id="view-investimentos" class="tab-content space-y-6 hidden">
         <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-amber-500/20">
           <div>
-            <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-              <span>📈</span> Investimentos & Poupança
-            </h2>
+            <h2 class="text-xl font-bold text-amber-400">Investimentos & Poupança</h2>
             <p class="text-xs text-brand-gray mt-1">Gestão de reservas e transferências para a Conta à Ordem</p>
           </div>
           <button onclick="window.openRedeemModal()" class="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">Resgatar para C/O</button>
@@ -870,7 +1255,6 @@
           </div>
         </div>
 
-        <!-- Gráfico de Linhas de Evolução de Investimentos -->
         <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
           <h3 class="font-bold text-base text-white">Evolução do Património Investido</h3>
           <div id="invLineChartContainer" class="w-full pt-2"></div>
@@ -882,10 +1266,10 @@
         </div>
       </div>
 
-      <!-- TAB 3: DIÁRIO DE TRANSAÇÕES -->
+      <!-- TAB 3: TRANSAÇÕES -->
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 class="text-xl font-bold">Diário de Transações</h2>
+          <h2 class="text-xl font-bold text-indigo-400">Transações</h2>
           <button onclick="window.openAddTransactionModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
             + Nova Entrada
           </button>
@@ -898,60 +1282,76 @@
             <span>Histórico de Lançamentos</span>
             <span id="txCount">0 registos</span>
           </div>
-          <div id="journalList" class="divide-y divide-brand-border"></div>
+          <div id="journalList" class="divide-y divide-brand-border max-h-[60vh] overflow-y-auto"></div>
         </div>
       </div>
 
-      <!-- TAB 4: CATEGORIAS -->
+      <!-- TAB 4: PREVISIBILIDADE -->
+      <div id="view-previsibilidade" class="tab-content space-y-6 hidden">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-blue-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-blue-500/20">
+          <div>
+            <h2 class="text-xl font-bold text-blue-400">Previsibilidade Financeira</h2>
+            <p class="text-xs text-brand-gray mt-1">Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas</p>
+          </div>
+          <button onclick="window.openForecastModal()" class="bg-blue-500 hover:bg-blue-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">
+            + Nova Previsão
+          </button>
+        </div>
+
+        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
+          <h3 class="font-bold text-base text-white">Análise Preditiva & Regras de Distribuição</h3>
+          <div id="forecastStats" class="space-y-3"></div>
+        </div>
+
+        <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
+          <div class="p-4 border-b border-brand-border font-bold text-sm text-brand-gray flex justify-between items-center">
+            <span>Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)</span>
+          </div>
+          <div id="forecastList" class="divide-y divide-brand-border max-h-[50vh] overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- TAB 5: CATEGORIAS -->
       <div id="view-categorias" class="tab-content space-y-6 hidden">
         <div class="flex justify-between items-center">
-          <h2 class="text-xl font-bold">Categorias & Subcategorias</h2>
-          <button onclick="window.openNewCategoryModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">+ Nova Categoria</button>
+          <h2 class="text-xl font-bold text-teal-400">Categorias</h2>
+          <button onclick="window.openNewCategoryModal(null)" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">+ Nova Categoria</button>
         </div>
-        <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto pr-1"></div>
       </div>
 
-      <!-- TAB 5: IA -->
+      <!-- TAB 6: IA (Com os 2 tópicos pedidos) -->
       <div id="view-ia" class="tab-content space-y-6 hidden">
         <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-6 rounded-2xl border border-emerald-500/20 space-y-3">
           <h2 class="text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
-          <button onclick="window.runAIAnalysis()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Novo Relatório</button>
+          <p class="text-xs text-brand-gray">Avaliação inteligente com base em literacia financeira validada.</p>
+          <button onclick="window.runAIAnalysis()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Relatório de IA</button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div class="grid grid-cols-1 gap-4">
+          <!-- Tópico 1 -->
           <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
-            <h3 class="font-bold text-emerald-400 text-sm">Taxa de Poupança & Aporte</h3>
-            <p id="aiSavingsRate" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
+            <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+              Análise da Saúde Financeira
+            </h3>
+            <p id="aiHealthAnalysis" class="text-xs text-brand-gray">Clique em "Gerar Relatório de IA" para obter o diagnóstico detalhado baseado nos seus dados atuais.</p>
           </div>
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
-            <h3 class="font-bold text-emerald-400 text-sm">Regra 50 / 30 / 20</h3>
-            <p id="aiRule503020" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
-          </div>
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2 md:col-span-2">
-            <h3 class="font-bold text-emerald-400 text-sm">Recomendações</h3>
-            <div id="aiRecommendations" class="text-xs text-brand-gray">Sem recomendações ativas.</div>
+
+          <!-- Tópico 2 -->
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
+            <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              Recomendações Financeiras (Literacia Validada)
+            </h3>
+            <div id="aiRecommendationsList" class="text-xs text-brand-gray space-y-2">
+              <p>• Sem recomendações geradas. Clique no botão acima para iniciar a análise.</p>
+            </div>
           </div>
         </div>
       </div>
 
     </main>
-  </div>
-
-  <!-- MODAL: DEFINIR SALDO INICIAL -->
-  <div id="balanceModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h3 class="font-bold text-white">Saldo Inicial / Ponto de Partida</h3><button onclick="window.closeBalanceModal()" class="text-brand-gray">✕</button></div>
-      <form onsubmit="window.saveInitialBalance(event)" class="space-y-3">
-        <p class="text-xs text-brand-gray">Define o valor disponível na tua conta bancária antes dos registos do diário.</p>
-        <div>
-          <label class="block text-xs font-medium text-brand-gray mb-1">Saldo Inicial (€)</label>
-          <input type="number" step="0.01" id="initialBalanceInput" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-sm font-bold text-white">
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" onclick="window.closeBalanceModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
-          <button type="submit" class="px-3 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl">Guardar</button>
-        </div>
-      </form>
-    </div>
   </div>
 
   <!-- MODAL: TRANSAÇÃO -->
@@ -982,6 +1382,33 @@
     </div>
   </div>
 
+  <!-- MODAL: PREVISÃO -->
+  <div id="forecastModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
+      <div class="flex justify-between items-center"><h3 id="fcModalTitle" class="font-bold text-blue-400">Nova Previsão</h3><button onclick="window.closeForecastModal()" class="text-brand-gray">✕</button></div>
+      <form id="forecastForm" onsubmit="window.saveForecast(event)" class="space-y-3">
+        <input type="hidden" id="fcId">
+        <div class="grid grid-cols-2 gap-2">
+          <select id="fcType" onchange="window.onFcTypeChange()" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+            <option value="despesa">Despesa Prevista</option>
+            <option value="receita">Receita Prevista</option>
+          </select>
+          <input type="date" id="fcDate" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        </div>
+        <input type="text" id="fcDesc" required placeholder="Descrição da Previsão" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        <div class="grid grid-cols-2 gap-2">
+          <select id="fcCategory" onchange="window.updateFcSubcatOptions()" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
+          <select id="fcSubcategory" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
+        </div>
+        <input type="number" step="0.01" id="fcAmount" required placeholder="Valor Previsto (€)" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="window.closeForecastModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-blue-500 text-slate-950 font-bold text-xs rounded-xl">Guardar Previsão</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: RESGATE -->
   <div id="redeemModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
@@ -989,7 +1416,6 @@
       <form onsubmit="window.executeRedeem(event)" class="space-y-3">
         <select id="redeemSubcat" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
         <input type="number" step="0.01" id="redeemAmount" required placeholder="Valor a resgatar (€)" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
-        <input type="text" id="redeemNote" placeholder="Motivo / Nota" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="window.closeRedeemModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
           <button type="submit" class="px-3 py-2 bg-amber-400 text-slate-950 font-bold text-xs rounded-xl">Confirmar</button>
@@ -998,17 +1424,28 @@
     </div>
   </div>
 
-  <!-- MODAL: CATEGORIA -->
+  <!-- MODAL: CRIAR / EDITAR CATEGORIA -->
   <div id="catModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h3 class="font-bold text-white">Nova Categoria</h3><button onclick="window.closeCatModal()" class="text-brand-gray">✕</button></div>
+    <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center"><h3 id="catModalTitle" class="font-bold text-white">Nova Categoria</h3><button onclick="window.closeCatModal()" class="text-brand-gray">✕</button></div>
       <form onsubmit="window.saveCategory(event)" class="space-y-3">
+        <input type="hidden" id="catEditIdx">
         <input type="text" id="catName" required placeholder="Nome da Categoria" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
-        <input type="color" id="catColor" value="#10b981" class="w-full h-10 bg-brand-bg border border-brand-border rounded-xl p-1">
+        
+        <div>
+          <label class="block text-xs text-brand-gray mb-1">Cor da Categoria</label>
+          <input type="color" id="catColor" value="#10b981" class="w-full h-10 bg-brand-bg border border-brand-border rounded-xl p-1">
+        </div>
+
+        <div>
+          <label class="block text-xs text-brand-gray mb-1.5">Escolher Ícone Profissional</label>
+          <div id="iconSelectorContainer" class="grid grid-cols-5 gap-2 max-h-36 overflow-y-auto p-1 bg-brand-bg border border-brand-border rounded-xl"></div>
+        </div>
+
         <input type="text" id="catSubcats" placeholder="Subcategorias separadas por vírgula" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="window.closeCatModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
-          <button type="submit" class="px-3 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl">Criar</button>
+          <button type="submit" class="px-3 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl">Guardar</button>
         </div>
       </form>
     </div>
