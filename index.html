@@ -55,7 +55,6 @@
       }
     } catch(e) {}
 
-    // Exatamente 15 ícones mapeados para as categorias requeridas
     const iconLibrary = {
       home: { label: "Casa", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>' },
       car: { label: "Carro", svg: '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m10 0a2 2 0 104 0"></path></svg>' },
@@ -126,13 +125,13 @@
         const v = document.getElementById(`view-${t}`);
         if(v) v.classList.add('hidden');
         const navBtn = document.getElementById(`nav-${t}`);
-        if(navBtn) navBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left";
+        if(navBtn) navBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm";
       });
 
       const activeV = document.getElementById(`view-${tab}`);
       if(activeV) activeV.classList.remove('hidden');
       const activeBtn = document.getElementById(`nav-${tab}`);
-      if(activeBtn) activeBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left";
+      if(activeBtn) activeBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left text-xs sm:text-sm";
 
       if (window.innerWidth < 768) {
         const sb = document.getElementById('mainSidebar');
@@ -412,7 +411,6 @@
       document.getElementById('catColor').value = currentColor;
       document.getElementById('catSubcats').value = currentSubcats;
 
-      // Renderiza exatamente os 15 ícones mapeados
       Object.keys(iconLibrary).forEach(key => {
         const isChecked = key === currentIcon ? 'checked' : '';
         const item = iconLibrary[key];
@@ -583,7 +581,7 @@
       });
       const keys = Object.keys(groupedData).sort();
       if (keys.length === 0) {
-        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem transações registadas para este período.</p>`;
+        container.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray m-auto py-8">Sem transações registadas para este período.</p>`;
         return;
       }
       let maxVal = 100;
@@ -600,7 +598,7 @@
               <div style="height: ${hDesp}%" class="w-2.5 sm:w-4 bg-red-500 rounded-t" title="Despesas: ${formatEUR(item.desp)}"></div>
               <div style="height: ${hInv}%" class="w-2.5 sm:w-4 bg-amber-400 rounded-t" title="Investimentos: ${formatEUR(item.inv)}"></div>
             </div>
-            <span class="text-[10px] text-brand-gray truncate w-full text-center mt-1">${k}</span>
+            <span class="text-[9px] sm:text-[10px] text-brand-gray truncate w-full text-center mt-1">${k}</span>
           </div>
         `;
       });
@@ -626,7 +624,7 @@
       });
 
       if (totalDesp === 0) {
-        listEl.innerHTML = `<p class="text-xs text-brand-gray">Sem despesas registadas no período.</p>`;
+        listEl.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray">Sem despesas registadas no período.</p>`;
         pieSvg.innerHTML = `<circle cx="16" cy="16" r="15.915" fill="none" stroke="#1e293b" stroke-width="4" />`;
         return;
       }
@@ -652,11 +650,11 @@
 
         listEl.innerHTML += `
           <div class="space-y-1">
-            <div class="flex justify-between text-xs">
-              <span class="text-white flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">${svgIcon}</span> ${catName}
+            <div class="flex justify-between text-[11px] sm:text-xs">
+              <span class="text-white flex items-center gap-1.5 truncate">
+                <span class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">${svgIcon}</span> <span class="truncate">${catName}</span>
               </span>
-              <span class="text-brand-gray font-medium">${formatEUR(amt)} (${pct.toFixed(1)}%)</span>
+              <span class="text-brand-gray font-medium flex-shrink-0 ml-2">${formatEUR(amt)} (${pct.toFixed(1)}%)</span>
             </div>
             <div class="w-full h-1.5 bg-brand-bg rounded-full overflow-hidden">
               <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${catObj.color}"></div>
@@ -670,7 +668,7 @@
       const el = document.getElementById('recentTransactionsList');
       if(el) {
         if (appState.transactions.length === 0) {
-          el.innerHTML = `<p class="text-xs text-brand-gray">Sem atividades recentes.</p>`;
+          el.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray">Sem atividades recentes.</p>`;
           return;
         }
         const recentTxs = [...appState.transactions].reverse().slice(0, 15);
@@ -679,17 +677,17 @@
           const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
           const svgIcon = iconEntry.svg;
           return `
-            <div class="flex justify-between items-center py-2.5 border-b border-brand-border/50 text-xs">
-              <div class="flex items-center gap-2.5">
+            <div class="flex justify-between items-center py-2.5 border-b border-brand-border/50 text-[11px] sm:text-xs">
+              <div class="flex items-center gap-2.5 truncate mr-2">
                 <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">
                   ${svgIcon}
                 </div>
-                <div>
-                  <p class="font-semibold text-white">${t.description}</p>
-                  <p class="text-[10px] text-brand-gray">${t.date} • ${t.category}</p>
+                <div class="truncate">
+                  <p class="font-semibold text-white truncate">${t.description}</p>
+                  <p class="text-[9px] sm:text-[10px] text-brand-gray">${t.date} • ${t.category}</p>
                 </div>
               </div>
-              <span class="font-bold ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
+              <span class="font-bold flex-shrink-0 ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
             </div>
           `;
         }).join('');
@@ -700,10 +698,10 @@
       const container = document.getElementById('journalMonthButtons');
       if (!container) return;
       const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
-      let html = `<button onclick="window.filterJournalByMonth('todos')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${selectedJournalMonth === 'todos' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">Todos</button>`;
+      let html = `<button onclick="window.filterJournalByMonth('todos')" class="px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold border transition ${selectedJournalMonth === 'todos' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">Todos</button>`;
       months.forEach(m => {
         const active = selectedJournalMonth === m;
-        html += `<button onclick="window.filterJournalByMonth('${m}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${active ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">${m}</button>`;
+        html += `<button onclick="window.filterJournalByMonth('${m}')" class="px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold border transition ${active ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">${m}</button>`;
       });
       container.innerHTML = html;
     }
@@ -723,7 +721,7 @@
           filtered = filtered.filter(t => t.date.startsWith(selectedJournalMonth));
         }
         if (filtered.length === 0) {
-          el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma transação registada.</p>`;
+          el.innerHTML = `<p class="p-4 text-[11px] sm:text-xs text-brand-gray text-center">Nenhuma transação registada.</p>`;
           if(countEl) countEl.innerText = "0 registos";
           return;
         }
@@ -733,18 +731,18 @@
           const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
           const svgIcon = iconEntry.svg;
           return `
-            <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
-              <div class="flex items-center gap-3">
+            <div class="p-3 sm:p-4 flex justify-between items-center text-[11px] sm:text-xs hover:bg-brand-border/20 transition">
+              <div class="flex items-center gap-3 truncate mr-2">
                 <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">
                   ${svgIcon}
                 </div>
-                <div>
-                  <p class="font-semibold text-white text-sm">${t.description}</p>
-                  <p class="text-[11px] text-brand-gray">${t.date} • <span class="text-slate-300">${t.category}</span> (${t.subcategory || 'Geral'})</p>
+                <div class="truncate">
+                  <p class="font-semibold text-white text-xs sm:text-sm truncate">${t.description}</p>
+                  <p class="text-[10px] sm:text-[11px] text-brand-gray truncate">${t.date} • <span class="text-slate-300">${t.category}</span> (${t.subcategory || 'Geral'})</p>
                 </div>
               </div>
-              <div class="flex items-center gap-3">
-                <span class="font-bold text-sm ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="font-bold text-xs sm:text-sm ${t.type==='receita'?'text-emerald-400':(t.type==='investimento'?'text-amber-400':'text-red-400')}">€${t.amount.toFixed(2)}</span>
                 <button onclick="window.editTransaction('${t.id}')" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar">${editIconSvg}</button>
                 <button onclick="window.deleteTransaction('${t.id}')" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Eliminar">${deleteIconSvg}</button>
               </div>
@@ -776,29 +774,29 @@
         statsEl.innerHTML = `
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
-              <p class="text-[11px] text-brand-gray">Rendimento Previsto</p>
-              <p class="text-base font-bold text-emerald-400">${formatEUR(totalPrevRec)}</p>
+              <p class="text-[10px] sm:text-[11px] text-brand-gray">Rendimento Previsto</p>
+              <p class="text-sm sm:text-base font-bold text-emerald-400">${formatEUR(totalPrevRec)}</p>
             </div>
             <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
-              <p class="text-[11px] text-brand-gray">Contas Previstas</p>
-              <p class="text-base font-bold text-red-400">${formatEUR(totalPrevDesp)}</p>
+              <p class="text-[10px] sm:text-[11px] text-brand-gray">Contas Previstas</p>
+              <p class="text-sm sm:text-base font-bold text-red-400">${formatEUR(totalPrevDesp)}</p>
             </div>
             <div class="bg-brand-bg p-3 rounded-xl border border-brand-border">
-              <p class="text-[11px] text-brand-gray">Excedente Líquido</p>
-              <p class="text-base font-bold text-white">${formatEUR(excedente)}</p>
+              <p class="text-[10px] sm:text-[11px] text-brand-gray">Excedente Líquido</p>
+              <p class="text-sm sm:text-base font-bold text-white">${formatEUR(excedente)}</p>
             </div>
             <div class="bg-brand-bg p-3 rounded-xl border border-brand-border flex items-center justify-between">
               <div>
-                <p class="text-[11px] text-brand-gray">Investimento</p>
-                <p class="text-base font-bold text-amber-400">${formatEUR(valInvestimento)}</p>
+                <p class="text-[10px] sm:text-[11px] text-brand-gray">Investimento</p>
+                <p class="text-sm sm:text-base font-bold text-amber-400">${formatEUR(valInvestimento)}</p>
               </div>
               <div class="flex items-center gap-1">
                 <div id="view-pctInv" class="flex items-center gap-1">
-                  <span class="text-xs font-bold text-white">${settings.pctInvestment}%</span>
+                  <span class="text-[11px] sm:text-xs font-bold text-white">${settings.pctInvestment}%</span>
                   <button onclick="window.toggleEditMode('pctInv')" class="p-1 text-brand-gray hover:text-white bg-brand-card rounded border border-brand-border">${editIconSvg}</button>
                 </div>
                 <div id="edit-pctInv" class="hidden flex items-center gap-1">
-                  <input type="number" id="input-pctInv" value="${settings.pctInvestment}" class="w-12 bg-brand-card border border-brand-border rounded p-1 text-center text-xs text-white">
+                  <input type="number" id="input-pctInv" value="${settings.pctInvestment}" class="w-12 bg-brand-card border border-brand-border rounded p-1 text-center text-[11px] sm:text-xs text-white">
                   <button onclick="window.saveFieldEdit('pctInvestment', 'input-pctInv'); window.toggleEditMode('pctInv');" class="p-1 text-emerald-400 bg-brand-card rounded border border-brand-border">${checkIconSvg}</button>
                 </div>
               </div>
@@ -811,17 +809,17 @@
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
                   <div id="view-nameA" class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-blue-400">${settings.nameA}</span>
+                    <span class="text-xs sm:text-sm font-bold text-blue-400">${settings.nameA}</span>
                     <button onclick="window.toggleEditMode('nameA')" class="p-1.5 text-brand-gray hover:text-white bg-brand-card rounded-lg border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-nameA" class="hidden flex items-center gap-1">
-                    <input type="text" id="input-nameA" value="${settings.nameA}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-blue-400 w-28">
+                    <input type="text" id="input-nameA" value="${settings.nameA}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-[11px] sm:text-xs font-bold text-blue-400 w-28">
                     <button onclick="window.saveFieldEdit('nameA', 'input-nameA'); window.toggleEditMode('nameA');" class="p-1.5 text-emerald-400 bg-brand-card rounded-lg border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
-                <span class="text-sm font-bold text-white">${formatEUR(valA)}</span>
+                <span class="text-xs sm:text-sm font-bold text-white">${formatEUR(valA)}</span>
               </div>
-              <div class="flex items-center justify-between text-xs text-brand-gray">
+              <div class="flex items-center justify-between text-[11px] sm:text-xs text-brand-gray">
                 <div class="flex items-center gap-1">
                   <span>Distr.:</span>
                   <div id="view-pctA" class="flex items-center gap-1 inline-flex">
@@ -852,17 +850,17 @@
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
                   <div id="view-nameB" class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-purple-400">${settings.nameB}</span>
+                    <span class="text-xs sm:text-sm font-bold text-purple-400">${settings.nameB}</span>
                     <button onclick="window.toggleEditMode('nameB')" class="p-1.5 text-brand-gray hover:text-white bg-brand-card rounded-lg border border-brand-border">${editIconSvg}</button>
                   </div>
                   <div id="edit-nameB" class="hidden flex items-center gap-1">
-                    <input type="text" id="input-nameB" value="${settings.nameB}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-xs font-bold text-purple-400 w-28">
+                    <input type="text" id="input-nameB" value="${settings.nameB}" class="bg-brand-card border border-brand-border rounded px-2 py-1 text-[11px] sm:text-xs font-bold text-purple-400 w-28">
                     <button onclick="window.saveFieldEdit('nameB', 'input-nameB'); window.toggleEditMode('nameB');" class="p-1.5 text-emerald-400 bg-brand-card rounded-lg border border-brand-border">${checkIconSvg}</button>
                   </div>
                 </div>
-                <span class="text-sm font-bold text-white">${formatEUR(valB)}</span>
+                <span class="text-xs sm:text-sm font-bold text-white">${formatEUR(valB)}</span>
               </div>
-              <div class="flex items-center justify-between text-xs text-brand-gray">
+              <div class="flex items-center justify-between text-[11px] sm:text-xs text-brand-gray">
                 <div class="flex items-center gap-1">
                   <span>Distr.:</span>
                   <div id="view-pctB" class="flex items-center gap-1 inline-flex">
@@ -892,23 +890,23 @@
       }
 
       if (forecasts.length === 0) {
-        el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma previsão registada.</p>`;
+        el.innerHTML = `<p class="p-4 text-[11px] sm:text-xs text-brand-gray text-center">Nenhuma previsão registada.</p>`;
         return;
       }
 
       el.innerHTML = forecasts.map(f => `
-        <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
-          <div class="flex items-center gap-3">
-            <button onclick="window.toggleForecastPaid('${f.id}')" class="w-6 h-6 rounded-lg border ${f.paid ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-brand-border bg-brand-bg'} flex items-center justify-center text-[11px]" title="Confirmar pagamento / passar à Visão Geral">
+        <div class="p-3 sm:p-4 flex justify-between items-center text-[11px] sm:text-xs hover:bg-brand-border/20 transition">
+          <div class="flex items-center gap-3 truncate mr-2">
+            <button onclick="window.toggleForecastPaid('${f.id}')" class="w-6 h-6 rounded-lg border ${f.paid ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-brand-border bg-brand-bg'} flex items-center justify-center text-[11px] flex-shrink-0" title="Confirmar pagamento / passar à Visão Geral">
               ${f.paid ? '✓' : ''}
             </button>
-            <div>
-              <p class="font-semibold text-white text-sm ${f.paid ? 'line-through text-brand-gray' : ''}">${f.description}</p>
-              <p class="text-[11px] text-brand-gray">${f.date} • <span class="text-slate-300">${f.category}</span> (${f.subcategory || 'Geral'}) — <span class="${f.paid ? 'text-emerald-400 font-medium' : 'text-amber-400'}">${f.paid ? 'Pago / Confirmado' : 'Pendente'}</span></p>
+            <div class="truncate">
+              <p class="font-semibold text-white text-xs sm:text-sm truncate ${f.paid ? 'line-through text-brand-gray' : ''}">${f.description}</p>
+              <p class="text-[10px] sm:text-[11px] text-brand-gray truncate">${f.date} • <span class="text-slate-300">${f.category}</span> (${f.subcategory || 'Geral'}) — <span class="${f.paid ? 'text-emerald-400 font-medium' : 'text-amber-400'}">${f.paid ? 'Pago / Confirmado' : 'Pendente'}</span></p>
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-sm ${f.type==='receita'?'text-emerald-400':'text-red-400'}">€${f.amount.toFixed(2)}</span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="font-bold text-xs sm:text-sm ${f.type==='receita'?'text-emerald-400':'text-red-400'}">€${f.amount.toFixed(2)}</span>
             <button onclick="window.openForecastModal('${f.id}')" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar">${editIconSvg}</button>
             <button onclick="window.deleteForecast('${f.id}')" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Eliminar">${deleteIconSvg}</button>
           </div>
@@ -925,19 +923,19 @@
           return `
             <div class="bg-brand-card p-4 rounded-2xl border border-brand-border space-y-3">
               <div class="flex justify-between items-center border-b border-brand-border pb-2">
-                <span class="font-bold text-white text-sm flex items-center gap-2">
-                  <span class="w-6 h-6 rounded-lg flex items-center justify-center" style="background-color: ${c.color}20; color: ${c.color}">
+                <span class="font-bold text-white text-xs sm:text-sm flex items-center gap-2 truncate">
+                  <span class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style="background-color: ${c.color}20; color: ${c.color}">
                     ${svgIcon}
                   </span>
-                  ${c.name}
+                  <span class="truncate">${c.name}</span>
                 </span>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-shrink-0">
                   <button onclick="window.openNewCategoryModal(${idx})" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border" title="Editar Categoria">${editIconSvg}</button>
                   <button onclick="window.deleteCategory(${idx})" class="p-1.5 text-red-400 hover:text-red-300 bg-brand-bg rounded-lg border border-brand-border" title="Apagar">${deleteIconSvg}</button>
                 </div>
               </div>
               <div class="flex flex-wrap gap-1.5">
-                ${c.subcategories.map(s => `<span class="bg-brand-bg border border-brand-border px-2.5 py-1 rounded-lg text-[11px] text-brand-gray">${s}</span>`).join('')}
+                ${c.subcategories.map(s => `<span class="bg-brand-bg border border-brand-border px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] text-brand-gray">${s}</span>`).join('')}
               </div>
             </div>
           `;
@@ -974,11 +972,11 @@
       if(listEl) {
         listEl.innerHTML = subcats.map(s => `
           <div class="bg-brand-bg p-3.5 rounded-xl border border-brand-border flex justify-between items-center">
-            <div>
-              <p class="text-xs font-semibold text-white">${s}</p>
-              <p class="text-[10px] text-brand-gray">Alocado no portfólio</p>
+            <div class="truncate mr-2">
+              <p class="text-[11px] sm:text-xs font-semibold text-white truncate">${s}</p>
+              <p class="text-[9px] sm:text-[10px] text-brand-gray">Alocado no portfólio</p>
             </div>
-            <span class="font-bold text-amber-400 text-sm">${formatEUR(totals[s] || 0)}</span>
+            <span class="font-bold text-amber-400 text-xs sm:text-sm flex-shrink-0">${formatEUR(totals[s] || 0)}</span>
           </div>
         `).join('');
       }
@@ -995,7 +993,7 @@
         .sort((a,b) => new Date(a.date) - new Date(b.date));
 
       if (sortedTxs.length === 0) {
-        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem histórico de investimentos.</p>`;
+        container.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray m-auto py-8">Sem histórico de investimentos.</p>`;
         return;
       }
       sortedTxs.forEach(t => {
@@ -1023,7 +1021,7 @@
             return `<circle cx="${x}" cy="${y}" r="4" fill="#eab308" class="hover:r-6 transition"><title>${k}: ${formatEUR(cumulativeData[k])}</title></circle>`;
           }).join('')}
         </svg>
-        <div class="flex justify-between text-[10px] text-brand-gray pt-2">
+        <div class="flex justify-between text-[9px] sm:text-[10px] text-brand-gray pt-2">
           <span>${keys[0] || ''}</span>
           <span>${keys[keys.length - 1] || ''}</span>
         </div>
@@ -1054,40 +1052,40 @@
         <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Menu">
           €
         </button>
-        <span class="font-bold text-sm tracking-wider uppercase text-brand-gray sidebar-label truncate hidden">Menu</span>
+        <span class="font-bold text-xs sm:text-sm tracking-wider uppercase text-brand-gray sidebar-label truncate hidden">Menu</span>
       </div>
 
       <nav class="space-y-6">
         <div class="space-y-1">
-          <button onclick="window.switchTab('geral')" id="nav-geral" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left">
+          <button onclick="window.switchTab('geral')" id="nav-geral" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-            <span class="sidebar-label text-sm hidden">Visão Geral</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Visão Geral</span>
           </button>
-          <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-            <span class="sidebar-label text-sm hidden">Transações</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Transações</span>
           </button>
         </div>
 
         <div class="space-y-1 pt-2 border-t border-brand-border/40">
-          <button onclick="window.switchTab('previsibilidade')" id="nav-previsibilidade" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <button onclick="window.switchTab('previsibilidade')" id="nav-previsibilidade" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <span class="sidebar-label text-sm hidden">Previsibilidade</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Previsibilidade</span>
           </button>
-          <button onclick="window.switchTab('investimentos')" id="nav-investimentos" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <button onclick="window.switchTab('investimentos')" id="nav-investimentos" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-            <span class="sidebar-label text-sm hidden">Investimentos</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Investimentos</span>
           </button>
         </div>
 
         <div class="space-y-1 pt-2 border-t border-brand-border/40">
-          <button onclick="window.switchTab('categorias')" id="nav-categorias" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <button onclick="window.switchTab('categorias')" id="nav-categorias" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-            <span class="sidebar-label text-sm hidden">Categorias</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Categorias</span>
           </button>
-          <button onclick="window.switchTab('ia')" id="nav-ia" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <button onclick="window.switchTab('ia')" id="nav-ia" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-            <span class="sidebar-label text-sm hidden">Relatórios & IA</span>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Relatórios & IA</span>
           </button>
         </div>
       </nav>
@@ -1097,61 +1095,60 @@
   <!-- CONTEÚDO PRINCIPAL -->
   <div class="flex-1 flex flex-col min-w-0 relative">
     
-    <!-- Cabeçalho limpo sem o botão de 3 traços -->
     <header class="bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center z-30">
       <div class="flex items-center gap-3">
-        <span class="font-bold text-white text-base">Mestre das Finanças</span>
+        <span class="font-bold text-white text-sm sm:text-base">Mestre das Finanças</span>
       </div>
     </header>
 
-    <main class="p-4 sm:p-6 space-y-6 flex-grow">
+    <main class="p-3 sm:p-6 space-y-4 sm:space-y-6 flex-grow">
 
       <!-- TAB 1: VISÃO GERAL -->
-      <div id="view-geral" class="tab-content space-y-6">
-        <h2 class="text-xl font-bold text-emerald-400">Visão Geral</h2>
+      <div id="view-geral" class="tab-content space-y-4 sm:space-y-6">
+        <h2 class="text-lg sm:text-xl font-bold text-emerald-400">Visão Geral</h2>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border relative group">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border relative group">
             <div class="flex justify-between items-center">
-              <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
+              <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Conta à Ordem</p>
               <div class="flex items-center gap-1">
                 <button id="btn-edit-balance" onclick="window.toggleBalanceEdit(true)" class="p-1.5 text-brand-gray hover:text-white bg-brand-bg rounded-lg border border-brand-border transition" title="Editar Saldo"></button>
                 <button id="btn-save-balance" onclick="window.toggleBalanceEdit(false)" class="p-1.5 text-emerald-400 bg-brand-bg rounded-lg border border-brand-border hidden transition" title="Guardar & Trancar"></button>
               </div>
             </div>
             
-            <div id="kpiSaldoDisplay" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</div>
+            <div id="kpiSaldoDisplay" class="text-lg sm:text-2xl font-bold mt-1 text-white truncate">€0,00</div>
             <div id="input-balance-wrap" class="hidden mt-1">
-              <input type="number" step="0.01" id="input-balance" class="w-full bg-brand-bg border border-brand-border rounded p-1 text-sm font-bold text-white">
+              <input type="number" step="0.01" id="input-balance" class="w-full bg-brand-bg border border-brand-border rounded p-1 text-xs sm:text-sm font-bold text-white">
             </div>
           </div>
 
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Receitas (Mês)</p>
-            <p id="kpiReceitas" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Receitas (Mês)</p>
+            <p id="kpiReceitas" class="text-lg sm:text-2xl font-bold mt-1 text-emerald-400 truncate">€0,00</p>
           </div>
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Despesas (Mês)</p>
-            <p id="kpiDespesas" class="text-xl sm:text-2xl font-bold mt-1 text-red-400">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Despesas (Mês)</p>
+            <p id="kpiDespesas" class="text-lg sm:text-2xl font-bold mt-1 text-red-400 truncate">€0,00</p>
           </div>
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Investimento & Poupança</p>
-            <p id="kpiInvestimento" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Investimento & Poupança</p>
+            <p id="kpiInvestimento" class="text-lg sm:text-2xl font-bold mt-1 text-amber-400 truncate">€0,00</p>
           </div>
         </div>
 
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
+        <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
-              <p class="text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
+              <h3 class="font-bold text-sm sm:text-base text-white">Evolução Financeira</h3>
+              <p class="text-[10px] sm:text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
             </div>
-            <select id="barChartFilter" onchange="window.onBarChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+            <select id="barChartFilter" onchange="window.onBarChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-[11px] sm:text-xs text-white focus:outline-none focus:border-emerald-500"></select>
           </div>
 
           <div id="evolutionChartContainer" class="w-full h-48 flex items-end justify-between gap-2 pt-4 pb-2 px-2 border-b border-brand-border"></div>
           
-          <div class="flex justify-center items-center gap-6 text-xs text-brand-gray pt-1">
+          <div class="flex justify-center items-center gap-4 sm:gap-6 text-[11px] sm:text-xs text-brand-gray pt-1">
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span> Receitas</span>
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-500"></span> Despesas</span>
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-400"></span> Investimentos</span>
@@ -1159,10 +1156,10 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
+          <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-3">
             <div class="flex justify-between items-center">
-              <h3 class="font-bold text-base text-white">Gastos por Categoria</h3>
-              <select id="pieChartFilter" onchange="window.onPieChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+              <h3 class="font-bold text-sm sm:text-base text-white">Gastos por Categoria</h3>
+              <select id="pieChartFilter" onchange="window.onPieChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-[11px] sm:text-xs text-white focus:outline-none focus:border-emerald-500"></select>
             </div>
             <div class="flex items-center gap-4 pt-2">
               <div class="w-24 h-24 flex-shrink-0">
@@ -1172,49 +1169,49 @@
             </div>
           </div>
 
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-            <h3 class="font-bold text-base text-white">Atividades Recentes (Últimos 15)</h3>
+          <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-3">
+            <h3 class="font-bold text-sm sm:text-base text-white">Atividades Recentes (Últimos 15)</h3>
             <div id="recentTransactionsList" class="space-y-1.5 max-h-64 overflow-y-auto pr-1"></div>
           </div>
         </div>
       </div>
 
       <!-- TAB 2: INVESTIMENTOS -->
-      <div id="view-investimentos" class="tab-content space-y-6 hidden">
-        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-amber-500/20">
+      <div id="view-investimentos" class="tab-content space-y-4 sm:space-y-6 hidden">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-brand-card to-brand-card p-4 sm:p-5 rounded-2xl border border-amber-500/20">
           <div>
-            <h2 class="text-xl font-bold text-amber-400">Investimentos & Poupança</h2>
-            <p class="text-xs text-brand-gray mt-1">Gestão de reservas e transferências para a Conta à Ordem</p>
+            <h2 class="text-lg sm:text-xl font-bold text-amber-400">Investimentos & Poupança</h2>
+            <p class="text-[10px] sm:text-xs text-brand-gray mt-1">Gestão de reservas e transferências para a Conta à Ordem</p>
           </div>
           <button onclick="window.openRedeemModal()" class="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">Resgatar para C/O</button>
         </div>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Total Investido</p>
-            <p id="invTotal" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Total Investido</p>
+            <p id="invTotal" class="text-lg sm:text-2xl font-bold mt-1 text-amber-400 truncate">€0,00</p>
           </div>
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Reserva Emergência</p>
-            <p id="invEmergencia" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Reserva Emergência</p>
+            <p id="invEmergencia" class="text-lg sm:text-2xl font-bold mt-1 text-emerald-400 truncate">€0,00</p>
           </div>
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Ações, ETFs & PPR</p>
-            <p id="invMercados" class="text-xl sm:text-2xl font-bold mt-1 text-blue-400">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Ações, ETFs & PPR</p>
+            <p id="invMercados" class="text-lg sm:text-2xl font-bold mt-1 text-blue-400 truncate">€0,00</p>
           </div>
-          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-            <p class="text-xs text-brand-gray font-medium">Resgatado (C/O)</p>
-            <p id="invResgatado" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
+          <div class="bg-brand-card p-3 sm:p-4 rounded-2xl border border-brand-border">
+            <p class="text-[11px] sm:text-xs text-brand-gray font-medium">Resgatado (C/O)</p>
+            <p id="invResgatado" class="text-lg sm:text-2xl font-bold mt-1 text-white truncate">€0,00</p>
           </div>
         </div>
 
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-          <h3 class="font-bold text-base text-white">Evolução do Património Investido</h3>
+        <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-3">
+          <h3 class="font-bold text-sm sm:text-base text-white">Evolução do Património Investido</h3>
           <div id="invLineChartContainer" class="w-full pt-2"></div>
         </div>
 
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
-          <h3 class="font-bold text-base text-white">Distribuição do Portfólio</h3>
+        <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-4">
+          <h3 class="font-bold text-sm sm:text-base text-white">Distribuição do Portfólio</h3>
           <div id="investmentsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
         </div>
       </div>
@@ -1222,7 +1219,7 @@
       <!-- TAB 3: TRANSAÇÕES -->
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 class="text-xl font-bold text-indigo-400">Transações</h2>
+          <h2 class="text-lg sm:text-xl font-bold text-indigo-400">Transações</h2>
           <button onclick="window.openAddTransactionModal()" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
             + Nova Entrada
           </button>
@@ -1231,7 +1228,7 @@
         <div class="flex items-center gap-2 overflow-x-auto pb-1" id="journalMonthButtons"></div>
 
         <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
-          <div class="p-4 border-b border-brand-border font-bold text-sm text-brand-gray flex justify-between">
+          <div class="p-3 sm:p-4 border-b border-brand-border font-bold text-xs sm:text-sm text-brand-gray flex justify-between">
             <span>Histórico de Lançamentos</span>
             <span id="txCount">0 registos</span>
           </div>
@@ -1240,24 +1237,24 @@
       </div>
 
       <!-- TAB 4: PREVISIBILIDADE -->
-      <div id="view-previsibilidade" class="tab-content space-y-6 hidden">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-blue-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-blue-500/20">
+      <div id="view-previsibilidade" class="tab-content space-y-4 sm:space-y-6 hidden">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-blue-500/10 via-brand-card to-brand-card p-4 sm:p-5 rounded-2xl border border-blue-500/20">
           <div>
-            <h2 class="text-xl font-bold text-blue-400">Previsibilidade Financeira</h2>
-            <p class="text-xs text-brand-gray mt-1">Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas</p>
+            <h2 class="text-lg sm:text-xl font-bold text-blue-400">Previsibilidade Financeira</h2>
+            <p class="text-[10px] sm:text-xs text-brand-gray mt-1">Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas</p>
           </div>
           <button onclick="window.openForecastModal()" class="bg-blue-500 hover:bg-blue-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">
             + Nova Previsão
           </button>
         </div>
 
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
-          <h3 class="font-bold text-base text-white">Análise Preditiva & Regras de Distribuição</h3>
+        <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-4">
+          <h3 class="font-bold text-sm sm:text-base text-white">Análise Preditiva & Regras de Distribuição</h3>
           <div id="forecastStats" class="space-y-3"></div>
         </div>
 
         <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
-          <div class="p-4 border-b border-brand-border font-bold text-sm text-brand-gray flex justify-between items-center">
+          <div class="p-3 sm:p-4 border-b border-brand-border font-bold text-xs sm:text-sm text-brand-gray flex justify-between items-center">
             <span>Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)</span>
           </div>
           <div id="forecastList" class="divide-y divide-brand-border max-h-[50vh] overflow-y-auto"></div>
@@ -1265,37 +1262,37 @@
       </div>
 
       <!-- TAB 5: CATEGORIAS -->
-      <div id="view-categorias" class="tab-content space-y-6 hidden">
+      <div id="view-categorias" class="tab-content space-y-4 sm:space-y-6 hidden">
         <div class="flex justify-between items-center">
-          <h2 class="text-xl font-bold text-teal-400">Categorias</h2>
+          <h2 class="text-lg sm:text-xl font-bold text-teal-400">Categorias</h2>
           <button onclick="window.openNewCategoryModal(null)" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">+ Nova Categoria</button>
         </div>
         <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto pr-1"></div>
       </div>
 
       <!-- TAB 6: IA -->
-      <div id="view-ia" class="tab-content space-y-6 hidden">
-        <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-6 rounded-2xl border border-emerald-500/20 space-y-3">
-          <h2 class="text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
-          <p class="text-xs text-brand-gray">Avaliação inteligente com base em literacia financeira validada.</p>
+      <div id="view-ia" class="tab-content space-y-4 sm:space-y-6 hidden">
+        <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-4 sm:p-6 rounded-2xl border border-emerald-500/20 space-y-3">
+          <h2 class="text-lg sm:text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
+          <p class="text-[11px] sm:text-xs text-brand-gray">Avaliação inteligente com base em literacia financeira validada.</p>
           <button onclick="window.runAIAnalysis()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Relatório de IA</button>
         </div>
 
         <div class="grid grid-cols-1 gap-4">
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
-            <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
+          <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-2">
+            <h3 class="font-bold text-emerald-400 text-xs sm:text-sm flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
               Análise da Saúde Financeira
             </h3>
-            <p id="aiHealthAnalysis" class="text-xs text-brand-gray">Clique em "Gerar Relatório de IA" para obter o diagnóstico detalhado baseado nos seus dados atuais.</p>
+            <p id="aiHealthAnalysis" class="text-[11px] sm:text-xs text-brand-gray">Clique em "Gerar Relatório de IA" para obter o diagnóstico detalhado baseado nos seus dados atuais.</p>
           </div>
 
-          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-            <h3 class="font-bold text-emerald-400 text-sm flex items-center gap-2">
+          <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-3">
+            <h3 class="font-bold text-emerald-400 text-xs sm:text-sm flex items-center gap-2">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               Recomendações Financeiras (Literacia Validada)
             </h3>
-            <div id="aiRecommendationsList" class="text-xs text-brand-gray space-y-2">
+            <div id="aiRecommendationsList" class="text-[11px] sm:text-xs text-brand-gray space-y-2">
               <p>• Sem recomendações geradas. Clique no botão acima para iniciar a análise.</p>
             </div>
           </div>
@@ -1308,7 +1305,7 @@
   <!-- MODAL: TRANSAÇÃO -->
   <div id="txModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h3 id="txModalTitle" class="font-bold text-white">Nova Transação</h3><button onclick="window.closeTxModal()" class="text-brand-gray">✕</button></div>
+      <div class="flex justify-between items-center"><h3 id="txModalTitle" class="font-bold text-white text-sm sm:text-base">Nova Transação</h3><button onclick="window.closeTxModal()" class="text-brand-gray">✕</button></div>
       <form id="txForm" onsubmit="window.saveTransaction(event)" class="space-y-3">
         <input type="hidden" id="txId">
         <div class="grid grid-cols-2 gap-2">
@@ -1336,7 +1333,7 @@
   <!-- MODAL: PREVISÃO -->
   <div id="forecastModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h3 id="fcModalTitle" class="font-bold text-blue-400">Nova Previsão</h3><button onclick="window.closeForecastModal()" class="text-brand-gray">✕</button></div>
+      <div class="flex justify-between items-center"><h3 id="fcModalTitle" class="font-bold text-blue-400 text-sm sm:text-base">Nova Previsão</h3><button onclick="window.closeForecastModal()" class="text-brand-gray">✕</button></div>
       <form id="forecastForm" onsubmit="window.saveForecast(event)" class="space-y-3">
         <input type="hidden" id="fcId">
         <div class="grid grid-cols-2 gap-2">
@@ -1363,7 +1360,7 @@
   <!-- MODAL: RESGATE -->
   <div id="redeemModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h3 class="font-bold text-amber-400">Transferir para C/O</h3><button onclick="window.closeRedeemModal()" class="text-brand-gray">✕</button></div>
+      <div class="flex justify-between items-center"><h3 class="font-bold text-amber-400 text-sm sm:text-base">Transferir para C/O</h3><button onclick="window.closeRedeemModal()" class="text-brand-gray">✕</button></div>
       <form onsubmit="window.executeRedeem(event)" class="space-y-3">
         <select id="redeemSubcat" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
         <input type="number" step="0.01" id="redeemAmount" required placeholder="Valor a resgatar (€)" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
@@ -1378,7 +1375,7 @@
   <!-- MODAL: CRIAR / EDITAR CATEGORIA -->
   <div id="catModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center"><h3 id="catModalTitle" class="font-bold text-white">Nova Categoria</h3><button onclick="window.closeCatModal()" class="text-brand-gray">✕</button></div>
+      <div class="flex justify-between items-center"><h3 id="catModalTitle" class="font-bold text-white text-sm sm:text-base">Nova Categoria</h3><button onclick="window.closeCatModal()" class="text-brand-gray">✕</button></div>
       <form onsubmit="window.saveCategory(event)" class="space-y-3">
         <input type="hidden" id="catEditIdx">
         <input type="text" id="catName" required placeholder="Nome da Categoria" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
