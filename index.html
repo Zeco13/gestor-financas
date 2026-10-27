@@ -27,9 +27,10 @@
   </script>
   <style>
     body { background-color: #090d16; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-    .nav-btn.active { color: #10b981; }
     .tab-content { display: block; }
     .tab-content.hidden { display: none !important; }
+    .sidebar-expanded { width: 260px; }
+    .sidebar-collapsed { width: 80px; }
   </style>
 
   <script>
@@ -55,25 +56,52 @@
       transactions: []
     };
 
-    let currentEvMode = 'mensal';
-    let selectedMonthsForComp = [];
+    let selectedJournalMonth = 'todos';
+    let selectedChartMonth = 'todos';
+    let sidebarCollapsed = false;
+
+    window.toggleSidebar = function() {
+      sidebarCollapsed = !sidebarCollapsed;
+      const sb = document.getElementById('mainSidebar');
+      const labels = document.querySelectorAll('.sidebar-label');
+
+      if (sidebarCollapsed) {
+        sb.classList.remove('sidebar-expanded');
+        sb.classList.add('sidebar-collapsed');
+        labels.forEach(l => l.classList.add('hidden'));
+      } else {
+        sb.classList.remove('sidebar-collapsed');
+        sb.classList.add('sidebar-expanded');
+        labels.forEach(l => l.classList.remove('hidden'));
+      }
+    };
+
+    window.toggleMobileSidebar = function() {
+      const sb = document.getElementById('mainSidebar');
+      sb.classList.toggle('hidden');
+      sb.classList.toggle('fixed');
+      sb.classList.toggle('inset-y-0');
+      sb.classList.toggle('left-0');
+      sb.classList.toggle('z-50');
+    };
 
     window.switchTab = function(tab) {
       ['geral', 'investimentos', 'diario', 'categorias', 'ia'].forEach(t => {
         const v = document.getElementById(`view-${t}`);
         if(v) v.classList.add('hidden');
-        const dt = document.getElementById(`tab-${t}`);
-        if(dt) dt.className = "tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white";
-        const mb = document.getElementById(`mb-${t}`);
-        if(mb) { mb.classList.remove('active', 'text-emerald-400'); mb.classList.add('text-brand-gray'); }
+        const navBtn = document.getElementById(`nav-${t}`);
+        if(navBtn) navBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left";
       });
 
       const activeV = document.getElementById(`view-${tab}`);
       if(activeV) activeV.classList.remove('hidden');
-      const activeDt = document.getElementById(`tab-${tab}`);
-      if(activeDt) activeDt.className = "tab-link text-emerald-400 border-b-2 border-emerald-400 pb-3 font-bold";
-      const activeMb = document.getElementById(`mb-${tab}`);
-      if(activeMb) { activeMb.classList.add('active', 'text-emerald-400'); activeMb.classList.remove('text-brand-gray'); }
+      const activeBtn = document.getElementById(`nav-${tab}`);
+      if(activeBtn) activeBtn.className = "sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left";
+
+      if (window.innerWidth < 768) {
+        const sb = document.getElementById('mainSidebar');
+        if (!sb.classList.contains('hidden')) window.toggleMobileSidebar();
+      }
     };
 
     window.openAddTransactionModal = function() {
@@ -81,7 +109,7 @@
       document.getElementById('txId').value = "";
       document.getElementById('txForm').reset();
       document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
-      populateCategoryDropdown();
+      window.onTxTypeChange();
       document.getElementById('txModal').classList.remove('hidden');
     };
 
@@ -95,9 +123,9 @@
       document.getElementById('txDesc').value = tx.description;
       document.getElementById('txAmount').value = tx.amount;
 
-      populateCategoryDropdown();
+      window.onTxTypeChange();
       document.getElementById('txCategory').value = tx.category;
-      updateSubcatOptions();
+      window.updateSubcatOptions();
       document.getElementById('txSubcategory').value = tx.subcategory;
 
       document.getElementById('txModal').classList.remove('hidden');
@@ -105,14 +133,29 @@
 
     window.closeTxModal = function() { document.getElementById('txModal').classList.add('hidden'); };
 
-    function populateCategoryDropdown() {
+    // Filtro condicional de Categorias conforme o tipo de Transação selecionado
+    window.onTxTypeChange = function() {
+      const type = document.getElementById('txType').value;
       const catSelect = document.getElementById('txCategory');
       catSelect.innerHTML = '';
-      appState.categories.forEach(c => {
+
+      let availableCats = [];
+      if (type === 'receita') {
+        availableCats = appState.categories.filter(c => c.name === "Rendimentos");
+      } else if (type === 'investimento') {
+        availableCats = appState.categories.filter(c => c.name.includes("Investimento"));
+      } else {
+        availableCats = appState.categories.filter(c => c.name !== "Rendimentos" && !c.name.includes("Investimento"));
+      }
+
+      if (availableCats.length === 0) availableCats = appState.categories;
+
+      availableCats.forEach(c => {
         catSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`;
       });
-      updateSubcatOptions();
-    }
+
+      window.updateSubcatOptions();
+    };
 
     window.updateSubcatOptions = function() {
       const catName = document.getElementById('txCategory').value;
@@ -123,17 +166,6 @@
         cat.subcategories.forEach(s => {
           subSelect.innerHTML += `<option value="${s}">${s}</option>`;
         });
-      }
-    };
-
-    window.onTxTypeChange = function() {
-      const type = document.getElementById('txType').value;
-      if (type === 'investimento') {
-        const invCat = appState.categories.find(c => c.name.includes("Investimento"));
-        if (invCat) {
-          document.getElementById('txCategory').value = invCat.name;
-          window.updateSubcatOptions();
-        }
       }
     };
 
@@ -170,7 +202,6 @@
       }
     };
 
-    // Gestão do Saldo Inicial / Ponto de Partida
     window.openInitialBalanceModal = function() {
       document.getElementById('initialBalanceInput').value = appState.initialBalance || 0;
       document.getElementById('balanceModal').classList.remove('hidden');
@@ -284,18 +315,6 @@
       reader.readAsText(file);
     };
 
-    window.setEvolutionMode = function(mode) {
-      currentEvMode = mode;
-      ['btnEvMensal', 'btnEvComp', 'btnEvAnual'].forEach(b => {
-        const btn = document.getElementById(b);
-        if(btn) btn.className = "px-3 py-1.5 rounded-lg text-brand-gray hover:text-white transition";
-      });
-      if(mode==='mensal') document.getElementById('btnEvMensal').className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition";
-      if(mode==='comparativo') document.getElementById('btnEvComp').className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition";
-      if(mode==='anual') document.getElementById('btnEvAnual').className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition";
-      renderEvolutionChart();
-    };
-
     window.runAIAnalysis = function() {
       let totalRec = 0, totalDesp = 0, totalInv = 0;
       appState.transactions.forEach(t => {
@@ -332,12 +351,15 @@
 
     function renderAll() {
       renderKPIs();
+      populateChartDropdowns();
       renderEvolutionChart();
       renderCategoryPieAndList();
       renderRecent();
+      renderJournalFilterButtons();
       renderJournal();
       renderCategories();
       renderInvestments();
+      renderInvestmentLineChart();
     }
 
     function renderKPIs() {
@@ -357,55 +379,56 @@
       document.getElementById('kpiInvestimento').innerText = formatEUR(inv);
     }
 
+    function populateChartDropdowns() {
+      const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
+      const selBar = document.getElementById('barChartFilter');
+      const selPie = document.getElementById('pieChartFilter');
+
+      if (!selBar || !selPie) return;
+
+      let options = `<option value="todos">Todos os Períodos</option>`;
+      months.forEach(m => {
+        options += `<option value="${m}">${m}</option>`;
+      });
+
+      selBar.innerHTML = options;
+      selPie.innerHTML = options;
+
+      selBar.value = selectedChartMonth;
+      selPie.value = selectedChartMonth;
+    }
+
+    window.onChartFilterChange = function(m) {
+      selectedChartMonth = m;
+      document.getElementById('barChartFilter').value = m;
+      document.getElementById('pieChartFilter').value = m;
+      renderEvolutionChart();
+      renderCategoryPieAndList();
+    };
+
     function renderEvolutionChart() {
-      const controls = document.getElementById('evolutionControls');
       const container = document.getElementById('evolutionChartContainer');
       if(!container) return;
-      controls.innerHTML = '';
       container.innerHTML = '';
 
       let groupedData = {};
-      if (currentEvMode === 'mensal') {
-        appState.transactions.forEach(tx => {
-          const m = tx.date.substring(0, 7);
-          if (!groupedData[m]) groupedData[m] = { rec: 0, desp: 0, inv: 0 };
-          if (tx.type === 'receita') groupedData[m].rec += tx.amount;
-          if (tx.type === 'despesa') groupedData[m].desp += tx.amount;
-          if (tx.type === 'investimento') groupedData[m].inv += tx.amount;
-        });
-      } else if (currentEvMode === 'comparativo') {
-        const allMonths = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort();
-        if (selectedMonthsForComp.length === 0) selectedMonthsForComp = allMonths.slice(-3);
+      let txs = appState.transactions;
 
-        controls.innerHTML = `<p class="font-medium text-brand-gray mb-1">Seleciona os meses:</p><div class="flex flex-wrap gap-2">` +
-          allMonths.map(m => `
-            <label class="inline-flex items-center gap-1 bg-brand-card border border-brand-border px-2 py-1 rounded-lg cursor-pointer">
-              <input type="checkbox" ${selectedMonthsForComp.includes(m)?'checked':''} onchange="window.toggleMonthComp('${m}')" class="rounded text-emerald-500">
-              <span>${m}</span>
-            </label>
-          `).join('') + `</div>`;
-
-        selectedMonthsForComp.forEach(m => {
-          groupedData[m] = { rec: 0, desp: 0, inv: 0 };
-          appState.transactions.filter(t => t.date.startsWith(m)).forEach(tx => {
-            if (tx.type === 'receita') groupedData[m].rec += tx.amount;
-            if (tx.type === 'despesa') groupedData[m].desp += tx.amount;
-            if (tx.type === 'investimento') groupedData[m].inv += tx.amount;
-          });
-        });
-      } else if (currentEvMode === 'anual') {
-        appState.transactions.forEach(tx => {
-          const y = tx.date.substring(0, 4);
-          if (!groupedData[y]) groupedData[y] = { rec: 0, desp: 0, inv: 0 };
-          if (tx.type === 'receita') groupedData[y].rec += tx.amount;
-          if (tx.type === 'despesa') groupedData[y].desp += tx.amount;
-          if (tx.type === 'investimento') groupedData[y].inv += tx.amount;
-        });
+      if (selectedChartMonth !== 'todos') {
+        txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
       }
+
+      txs.forEach(tx => {
+        const m = tx.date.substring(0, 7);
+        if (!groupedData[m]) groupedData[m] = { rec: 0, desp: 0, inv: 0 };
+        if (tx.type === 'receita') groupedData[m].rec += tx.amount;
+        if (tx.type === 'despesa') groupedData[m].desp += tx.amount;
+        if (tx.type === 'investimento') groupedData[m].inv += tx.amount;
+      });
 
       const keys = Object.keys(groupedData).sort();
       if (keys.length === 0) {
-        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem transações suficientes para gerar o gráfico.</p>`;
+        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem transações registadas para este período.</p>`;
         return;
       }
 
@@ -433,15 +456,6 @@
       });
     }
 
-    window.toggleMonthComp = function(m) {
-      if (selectedMonthsForComp.includes(m)) {
-        selectedMonthsForComp = selectedMonthsForComp.filter(x => x !== m);
-      } else {
-        selectedMonthsForComp.push(m);
-      }
-      renderEvolutionChart();
-    };
-
     function renderCategoryPieAndList() {
       const listEl = document.getElementById('categoryBreakdownList');
       const pieSvg = document.getElementById('categoryPieSvg');
@@ -450,26 +464,33 @@
       listEl.innerHTML = '';
       pieSvg.innerHTML = '';
 
-      let catTotals = {};
+      let txs = appState.transactions.filter(t => t.type === 'despesa');
+      if (selectedChartMonth !== 'todos') {
+        txs = txs.filter(t => t.date.startsWith(selectedChartMonth));
+      }
+
+      let subcatTotals = {};
       let totalDesp = 0;
 
-      appState.transactions.filter(t => t.type === 'despesa').forEach(t => {
-        catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+      txs.forEach(t => {
+        const key = `${t.category} > ${t.subcategory || 'Geral'}`;
+        subcatTotals[key] = (subcatTotals[key] || 0) + t.amount;
         totalDesp += t.amount;
       });
 
       if (totalDesp === 0) {
-        listEl.innerHTML = `<p class="text-xs text-brand-gray">Sem despesas registadas.</p>`;
+        listEl.innerHTML = `<p class="text-xs text-brand-gray">Sem despesas registadas no período selecionado.</p>`;
         pieSvg.innerHTML = `<circle cx="16" cy="16" r="15.915" fill="none" stroke="#1e293b" stroke-width="4" />`;
         return;
       }
 
       let cumulativePct = 0;
-      const catKeys = Object.keys(catTotals);
+      const keys = Object.keys(subcatTotals);
 
-      catKeys.forEach(catName => {
-        const amt = catTotals[catName];
+      keys.forEach(key => {
+        const amt = subcatTotals[key];
         const pct = (amt / totalDesp) * 100;
+        const catName = key.split(' > ')[0];
         const catObj = appState.categories.find(c => c.name === catName) || { color: '#94a3b8' };
 
         const strokeDasharray = `${pct} ${100 - pct}`;
@@ -487,8 +508,8 @@
         listEl.innerHTML += `
           <div class="space-y-1">
             <div class="flex justify-between text-xs">
-              <span class="text-white flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${catObj.color}"></span> ${catName}
+              <span class="text-white flex items-center gap-1.5 truncate max-w-[180px]">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${catObj.color}"></span> ${key}
               </span>
               <span class="text-brand-gray font-medium">${formatEUR(amt)} (${pct.toFixed(1)}%)</span>
             </div>
@@ -516,17 +537,45 @@
       }
     }
 
+    function renderJournalFilterButtons() {
+      const container = document.getElementById('journalMonthButtons');
+      if (!container) return;
+
+      const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
+      
+      let html = `<button onclick="window.filterJournalByMonth('todos')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${selectedJournalMonth === 'todos' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">Todos</button>`;
+
+      months.forEach(m => {
+        const active = selectedJournalMonth === m;
+        html += `<button onclick="window.filterJournalByMonth('${m}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${active ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">${m}</button>`;
+      });
+
+      container.innerHTML = html;
+    }
+
+    window.filterJournalByMonth = function(m) {
+      selectedJournalMonth = m;
+      renderJournalFilterButtons();
+      renderJournal();
+    };
+
     window.renderJournal = function() {
       const el = document.getElementById('journalList');
       const countEl = document.getElementById('txCount');
       if(el) {
-        if (appState.transactions.length === 0) {
-          el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma transação registada.</p>`;
+        let filtered = appState.transactions;
+        if (selectedJournalMonth !== 'todos') {
+          filtered = filtered.filter(t => t.date.startsWith(selectedJournalMonth));
+        }
+
+        if (filtered.length === 0) {
+          el.innerHTML = `<p class="p-4 text-xs text-brand-gray text-center">Nenhuma transação registada para este filtro.</p>`;
           if(countEl) countEl.innerText = "0 registos";
           return;
         }
-        if(countEl) countEl.innerText = `${appState.transactions.length} registos`;
-        el.innerHTML = [...appState.transactions].reverse().map(t => `
+
+        if(countEl) countEl.innerText = `${filtered.length} registos`;
+        el.innerHTML = [...filtered].reverse().map(t => `
           <div class="p-3 sm:p-4 flex justify-between items-center text-xs hover:bg-brand-border/20 transition">
             <div>
               <p class="font-semibold text-white text-sm">${t.description}</p>
@@ -601,6 +650,60 @@
       }
     }
 
+    // Gráfico de Linhas para Investimentos
+    function renderInvestmentLineChart() {
+      const container = document.getElementById('invLineChartContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      let cumulativeData = {};
+      let runningTotal = 0;
+
+      const sortedTxs = [...appState.transactions]
+        .filter(t => t.type === 'investimento' || (t.type === 'receita' && t.description.includes("Resgate")))
+        .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      if (sortedTxs.length === 0) {
+        container.innerHTML = `<p class="text-xs text-brand-gray m-auto py-8">Sem histórico de investimentos registado.</p>`;
+        return;
+      }
+
+      sortedTxs.forEach(t => {
+        const m = t.date.substring(0, 7);
+        if (t.type === 'investimento') runningTotal += t.amount;
+        else if (t.type === 'receita') runningTotal -= t.amount;
+        cumulativeData[m] = runningTotal;
+      });
+
+      const keys = Object.keys(cumulativeData);
+      const points = keys.map(k => cumulativeData[k]);
+      const maxVal = Math.max(...points, 100);
+
+      let polylinePoints = "";
+      const step = keys.length > 1 ? 280 / (keys.length - 1) : 140;
+
+      keys.forEach((k, idx) => {
+        const x = 10 + (idx * step);
+        const y = 90 - ((cumulativeData[k] / maxVal) * 75);
+        polylinePoints += `${x},${y} `;
+      });
+
+      container.innerHTML = `
+        <svg viewBox="0 0 300 100" class="w-full h-36 overflow-visible">
+          <polyline fill="none" stroke="#eab308" stroke-width="3" points="${polylinePoints}" />
+          ${keys.map((k, idx) => {
+            const x = 10 + (idx * step);
+            const y = 90 - ((cumulativeData[k] / maxVal) * 75);
+            return `<circle cx="${x}" cy="${y}" r="4" fill="#eab308" class="hover:r-6 transition"><title>${k}: ${formatEUR(cumulativeData[k])}</title></circle>`;
+          }).join('')}
+        </svg>
+        <div class="flex justify-between text-[10px] text-brand-gray pt-2">
+          <span>${keys[0] || ''}</span>
+          <span>${keys[keys.length - 1] || ''}</span>
+        </div>
+      `;
+    }
+
     function formatEUR(v) { return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v || 0); }
 
     window.addEventListener('DOMContentLoaded', async () => {
@@ -611,209 +714,234 @@
     });
   </script>
 </head>
-<body class="pb-24 md:pb-8 antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col">
+<body class="antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex flex-col md:flex-row bg-brand-bg">
 
-  <!-- Header -->
-  <header class="bg-brand-card border-b border-brand-border px-4 py-3 flex-shrink-0">
-    <div class="max-w-5xl mx-auto flex justify-between items-center">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">€</div>
-        <h1 class="font-bold text-lg text-white">Finanças Pessoais</h1>
+  <!-- BARRA LATERAL (SIDEBAR) -->
+  <aside id="mainSidebar" class="sidebar-expanded bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 hidden md:flex flex-shrink-0 min-h-screen">
+    <div class="p-4 space-y-6">
+      <!-- Logo € Minimizar / Maximizar -->
+      <div class="flex items-center gap-3">
+        <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Sidebar">
+          €
+        </button>
+        <span class="font-bold text-lg text-white sidebar-label truncate">Finanças</span>
       </div>
+
+      <!-- Navigation Links -->
+      <nav class="space-y-1">
+        <button onclick="window.switchTab('geral')" id="nav-geral" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold w-full text-left">
+          <span>📊</span><span class="sidebar-label text-sm">Visão Geral</span>
+        </button>
+        <button onclick="window.switchTab('investimentos')" id="nav-investimentos" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <span>📈</span><span class="sidebar-label text-sm">Investimentos</span>
+        </button>
+        <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <span>📖</span><span class="sidebar-label text-sm">Diário Transações</span>
+        </button>
+        <button onclick="window.switchTab('categorias')" id="nav-categorias" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <span>🏷️</span><span class="sidebar-label text-sm">Categorias</span>
+        </button>
+        <button onclick="window.switchTab('ia')" id="nav-ia" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left">
+          <span>🤖</span><span class="sidebar-label text-sm">Relatórios & IA</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Importar no Fundo da Sidebar -->
+    <div class="p-4 border-t border-brand-border">
+      <input type="file" id="importFile" onchange="window.handleFileImport(event)" accept=".csv,.txt" class="hidden">
+      <button onclick="window.openImportModal()" class="w-full bg-brand-border hover:bg-slate-700 text-xs font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2 border border-slate-600">
+        <span>📥</span><span class="sidebar-label">Importar Ficheiro</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <div class="flex-1 flex flex-col min-w-0">
+    
+    <!-- Topbar para Telemóvel -->
+    <header class="md:hidden bg-brand-card border-b border-brand-border px-4 py-3 flex justify-between items-center">
       <div class="flex items-center gap-2">
-        <span id="syncStatus" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Ativo
-        </span>
+        <button onclick="window.toggleMobileSidebar()" class="p-1.5 text-white bg-brand-bg rounded-lg border border-brand-border">☰</button>
+        <span class="font-bold text-white text-base">Finanças Pessoais</span>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <!-- Main Content Area -->
-  <main class="max-w-5xl mx-auto px-4 py-4 w-full flex-grow space-y-6">
+    <!-- Main Content Area -->
+    <main class="p-4 sm:p-6 space-y-6 flex-grow">
 
-    <!-- Section Tabs (Desktop Navigation) -->
-    <div class="hidden md:flex border-b border-brand-border gap-6 text-sm font-medium">
-      <button onclick="window.switchTab('geral')" id="tab-geral" class="tab-link text-emerald-400 border-b-2 border-emerald-400 pb-3">Visão Geral</button>
-      <button onclick="window.switchTab('investimentos')" id="tab-investimentos" class="tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white">Investimento & Poupança</button>
-      <button onclick="window.switchTab('diario')" id="tab-diario" class="tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white">Diário de Transações</button>
-      <button onclick="window.switchTab('categorias')" id="tab-categorias" class="tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white">Categorias</button>
-      <button onclick="window.switchTab('ia')" id="tab-ia" class="tab-link text-brand-gray border-b-2 border-transparent pb-3 hover:text-white">Relatórios & IA</button>
-    </div>
-
-    <!-- TAB 1: VISÃO GERAL -->
-    <div id="view-geral" class="tab-content space-y-6">
-      <div class="flex justify-between items-center gap-4">
+      <!-- TAB 1: VISÃO GERAL -->
+      <div id="view-geral" class="tab-content space-y-6">
         <h2 class="text-xl font-bold">Resumo Financeiro</h2>
-        <div class="flex gap-2">
-          <input type="file" id="importFile" onchange="window.handleFileImport(event)" accept=".csv,.txt" class="hidden">
-          <button onclick="window.openImportModal()" class="bg-brand-border hover:bg-slate-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-slate-600">Importar</button>
-          <button onclick="window.openAddTransactionModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20">+ Nova Entrada</button>
-        </div>
-      </div>
 
-      <!-- KPI Cards -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <!-- Conta à Ordem (Editável como Saldo Inicial) -->
-        <div onclick="window.openInitialBalanceModal()" class="bg-brand-card p-4 rounded-2xl border border-brand-border cursor-pointer hover:border-emerald-500/50 transition relative group">
-          <div class="flex justify-between items-center">
-            <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
-            <span class="text-[10px] text-emerald-400 opacity-80 group-hover:opacity-100">✏️ Editar</span>
-          </div>
-          <p id="kpiSaldo" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
-          <span class="text-[10px] text-brand-gray">Clica p/ definir ponto de partida</span>
-        </div>
-
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Receitas (Mês)</p>
-          <p id="kpiReceitas" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
-        </div>
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Despesas (Mês)</p>
-          <p id="kpiDespesas" class="text-xl sm:text-2xl font-bold mt-1 text-red-400">€0,00</p>
-        </div>
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Investimento & Poupança</p>
-          <p id="kpiInvestimento" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
-        </div>
-      </div>
-
-      <!-- Gráfico Evolução Financeira -->
-      <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
-            <p class="text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
-          </div>
-          <div class="flex items-center gap-2 bg-brand-bg p-1 rounded-xl border border-brand-border text-xs">
-            <button onclick="window.setEvolutionMode('mensal')" id="btnEvMensal" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition">Mensal</button>
-            <button onclick="window.setEvolutionMode('comparativo')" id="btnEvComp" class="px-3 py-1.5 rounded-lg text-brand-gray hover:text-white transition">Comparativo</button>
-            <button onclick="window.setEvolutionMode('anual')" id="btnEvAnual" class="px-3 py-1.5 rounded-lg text-brand-gray hover:text-white transition">Anual</button>
-          </div>
-        </div>
-
-        <div id="evolutionControls" class="pt-2 border-t border-brand-border text-xs space-y-2"></div>
-        <div id="evolutionChartContainer" class="w-full h-48 flex items-end justify-between gap-2 pt-4 pb-2 px-2 border-b border-brand-border"></div>
-        
-        <div class="flex justify-center items-center gap-6 text-xs text-brand-gray pt-1">
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span> Receitas</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-500"></span> Despesas</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-400"></span> Investimentos</span>
-        </div>
-      </div>
-
-      <!-- Distribuição por Categorias & Recentes -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-          <h3 class="font-bold text-base text-white">Gastos por Categoria</h3>
-          <div class="flex items-center gap-4">
-            <div class="w-24 h-24 flex-shrink-0">
-              <svg id="categoryPieSvg" viewBox="0 0 32 32" class="w-full h-full transform -rotate-90 rounded-full bg-brand-bg"></svg>
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div onclick="window.openInitialBalanceModal()" class="bg-brand-card p-4 rounded-2xl border border-brand-border cursor-pointer hover:border-emerald-500/50 transition relative group">
+            <div class="flex justify-between items-center">
+              <p class="text-xs text-brand-gray font-medium">Conta à Ordem</p>
+              <span class="text-[10px] text-emerald-400 opacity-80 group-hover:opacity-100">✏️</span>
             </div>
-            <div id="categoryBreakdownList" class="flex-1 space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            <p id="kpiSaldo" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
+          </div>
+
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Receitas (Mês)</p>
+            <p id="kpiReceitas" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
+          </div>
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Despesas (Mês)</p>
+            <p id="kpiDespesas" class="text-xl sm:text-2xl font-bold mt-1 text-red-400">€0,00</p>
+          </div>
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Investimento & Poupança</p>
+            <p id="kpiInvestimento" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
           </div>
         </div>
 
+        <!-- Gráfico Evolução Financeira -->
+        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold text-base text-white">Evolução Financeira</h3>
+              <p class="text-xs text-brand-gray">Acompanhamento e comparação de rendimentos e gastos</p>
+            </div>
+            <select id="barChartFilter" onchange="window.onChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+          </div>
+
+          <div id="evolutionChartContainer" class="w-full h-48 flex items-end justify-between gap-2 pt-4 pb-2 px-2 border-b border-brand-border"></div>
+          
+          <div class="flex justify-center items-center gap-6 text-xs text-brand-gray pt-1">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span> Receitas</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-500"></span> Despesas</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-400"></span> Investimentos</span>
+          </div>
+        </div>
+
+        <!-- Distribuição por Categoria & Subcategoria (Gráfico Queijo) & Recentes -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="font-bold text-base text-white">Gastos por Categoria / Subcategoria</h3>
+              <select id="pieChartFilter" onchange="window.onChartFilterChange(this.value)" class="bg-brand-bg border border-brand-border px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"></select>
+            </div>
+            <div class="flex items-center gap-4 pt-2">
+              <div class="w-24 h-24 flex-shrink-0">
+                <svg id="categoryPieSvg" viewBox="0 0 32 32" class="w-full h-full transform -rotate-90 rounded-full bg-brand-bg"></svg>
+              </div>
+              <div id="categoryBreakdownList" class="flex-1 space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
+            <h3 class="font-bold text-base text-white">Atividades Recentes</h3>
+            <div id="recentTransactionsList" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: INVESTIMENTOS -->
+      <div id="view-investimentos" class="tab-content space-y-6 hidden">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-amber-500/20">
+          <div>
+            <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
+              <span>📈</span> Investimentos & Poupança
+            </h2>
+            <p class="text-xs text-brand-gray mt-1">Gestão de reservas e transferências para a Conta à Ordem</p>
+          </div>
+          <button onclick="window.openRedeemModal()" class="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">Resgatar para C/O</button>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Total Investido</p>
+            <p id="invTotal" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
+          </div>
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Reserva Emergência</p>
+            <p id="invEmergencia" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
+          </div>
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Ações, ETFs & PPR</p>
+            <p id="invMercados" class="text-xl sm:text-2xl font-bold mt-1 text-blue-400">€0,00</p>
+          </div>
+          <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
+            <p class="text-xs text-brand-gray font-medium">Resgatado (C/O)</p>
+            <p id="invResgatado" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
+          </div>
+        </div>
+
+        <!-- Gráfico de Linhas de Evolução de Investimentos -->
         <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-3">
-          <h3 class="font-bold text-base text-white">Atividades Recentes</h3>
-          <div id="recentTransactionsList" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+          <h3 class="font-bold text-base text-white">Evolução do Património Investido</h3>
+          <div id="invLineChartContainer" class="w-full pt-2"></div>
         </div>
-      </div>
-    </div>
 
-    <!-- TAB 2: INVESTIMENTOS -->
-    <div id="view-investimentos" class="tab-content space-y-6 hidden">
-      <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-gradient-to-r from-amber-500/10 via-brand-card to-brand-card p-5 rounded-2xl border border-amber-500/20">
-        <div>
-          <h2 class="text-xl font-bold text-amber-400">Investimentos & Poupança</h2>
-          <p class="text-xs text-brand-gray mt-1">Gestão de reservas e transferências para a Conta à Ordem</p>
-        </div>
-        <button onclick="window.openRedeemModal()" class="bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">Resgatar para C/O</button>
-      </div>
-
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Total Investido</p>
-          <p id="invTotal" class="text-xl sm:text-2xl font-bold mt-1 text-amber-400">€0,00</p>
-        </div>
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Reserva Emergência</p>
-          <p id="invEmergencia" class="text-xl sm:text-2xl font-bold mt-1 text-emerald-400">€0,00</p>
-        </div>
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Ações, ETFs & PPR</p>
-          <p id="invMercados" class="text-xl sm:text-2xl font-bold mt-1 text-blue-400">€0,00</p>
-        </div>
-        <div class="bg-brand-card p-4 rounded-2xl border border-brand-border">
-          <p class="text-xs text-brand-gray font-medium">Resgatado (C/O)</p>
-          <p id="invResgatado" class="text-xl sm:text-2xl font-bold mt-1 text-white">€0,00</p>
+        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
+          <h3 class="font-bold text-base text-white">Distribuição do Portfólio</h3>
+          <div id="investmentsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
         </div>
       </div>
 
-      <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-4">
-        <h3 class="font-bold text-base text-white">Distribuição do Portfólio</h3>
-        <div id="investmentsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-      </div>
-    </div>
-
-    <!-- TAB 3: DIÁRIO -->
-    <div id="view-diario" class="tab-content space-y-4 hidden">
-      <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
-        <div class="p-4 border-b border-brand-border font-bold text-sm text-brand-gray flex justify-between">
-          <span>Histórico do Diário</span>
-          <span id="txCount">0 registos</span>
+      <!-- TAB 3: DIÁRIO DE TRANSAÇÕES -->
+      <div id="view-diario" class="tab-content space-y-4 hidden">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 class="text-xl font-bold">Diário de Transações</h2>
+          <button onclick="window.openAddTransactionModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
+            + Nova Entrada
+          </button>
         </div>
-        <div id="journalList" class="divide-y divide-brand-border"></div>
-      </div>
-    </div>
 
-    <!-- TAB 4: CATEGORIAS -->
-    <div id="view-categorias" class="tab-content space-y-6 hidden">
-      <div class="flex justify-between items-center">
-        <h2 class="text-xl font-bold">Categorias & Subcategorias</h2>
-        <button onclick="window.openNewCategoryModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">+ Nova Categoria</button>
-      </div>
-      <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-    </div>
+        <div class="flex items-center gap-2 overflow-x-auto pb-1" id="journalMonthButtons"></div>
 
-    <!-- TAB 5: IA -->
-    <div id="view-ia" class="tab-content space-y-6 hidden">
-      <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-6 rounded-2xl border border-emerald-500/20 space-y-3">
-        <h2 class="text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
-        <button onclick="window.runAIAnalysis()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Novo Relatório</button>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
-          <h3 class="font-bold text-emerald-400 text-sm">Taxa de Poupança & Aporte</h3>
-          <p id="aiSavingsRate" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
-        </div>
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
-          <h3 class="font-bold text-emerald-400 text-sm">Regra 50 / 30 / 20</h3>
-          <p id="aiRule503020" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
-        </div>
-        <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2 md:col-span-2">
-          <h3 class="font-bold text-emerald-400 text-sm">Recomendações</h3>
-          <div id="aiRecommendations" class="text-xs text-brand-gray">Sem recomendações ativas.</div>
+        <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
+          <div class="p-4 border-b border-brand-border font-bold text-sm text-brand-gray flex justify-between">
+            <span>Histórico de Lançamentos</span>
+            <span id="txCount">0 registos</span>
+          </div>
+          <div id="journalList" class="divide-y divide-brand-border"></div>
         </div>
       </div>
-    </div>
 
-  </main>
+      <!-- TAB 4: CATEGORIAS -->
+      <div id="view-categorias" class="tab-content space-y-6 hidden">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold">Categorias & Subcategorias</h2>
+          <button onclick="window.openNewCategoryModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-3 py-2 rounded-xl">+ Nova Categoria</button>
+        </div>
+        <div id="categoriesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
 
-  <!-- Mobile Bottom Navigation Bar -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-brand-card/95 backdrop-blur border-t border-brand-border z-40 px-2 py-2 flex justify-around items-center">
-    <button onclick="window.switchTab('geral')" id="mb-geral" class="nav-btn active flex flex-col items-center gap-1 text-[10px] text-emerald-400 py-1 px-3">Geral</button>
-    <button onclick="window.switchTab('investimentos')" id="mb-investimentos" class="nav-btn flex flex-col items-center gap-1 text-[10px] text-brand-gray py-1 px-3">Investimento</button>
-    <button onclick="window.switchTab('diario')" id="mb-diario" class="nav-btn flex flex-col items-center gap-1 text-[10px] text-brand-gray py-1 px-3">Diário</button>
-    <button onclick="window.switchTab('categorias')" id="mb-categorias" class="nav-btn flex flex-col items-center gap-1 text-[10px] text-brand-gray py-1 px-3">Categorias</button>
-    <button onclick="window.switchTab('ia')" id="mb-ia" class="nav-btn flex flex-col items-center gap-1 text-[10px] text-brand-gray py-1 px-3">IA</button>
-  </nav>
+      <!-- TAB 5: IA -->
+      <div id="view-ia" class="tab-content space-y-6 hidden">
+        <div class="bg-gradient-to-r from-emerald-500/10 via-brand-card to-brand-card p-6 rounded-2xl border border-emerald-500/20 space-y-3">
+          <h2 class="text-xl font-bold text-emerald-400">Diagnóstico & Insights de IA</h2>
+          <button onclick="window.runAIAnalysis()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Gerar Novo Relatório</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
+            <h3 class="font-bold text-emerald-400 text-sm">Taxa de Poupança & Aporte</h3>
+            <p id="aiSavingsRate" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
+          </div>
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2">
+            <h3 class="font-bold text-emerald-400 text-sm">Regra 50 / 30 / 20</h3>
+            <p id="aiRule503020" class="text-xs text-brand-gray">Clica em "Gerar Novo Relatório".</p>
+          </div>
+          <div class="bg-brand-card p-5 rounded-2xl border border-brand-border space-y-2 md:col-span-2">
+            <h3 class="font-bold text-emerald-400 text-sm">Recomendações</h3>
+            <div id="aiRecommendations" class="text-xs text-brand-gray">Sem recomendações ativas.</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
 
   <!-- MODAL: DEFINIR SALDO INICIAL -->
   <div id="balanceModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
       <div class="flex justify-between items-center"><h3 class="font-bold text-white">Saldo Inicial / Ponto de Partida</h3><button onclick="window.closeBalanceModal()" class="text-brand-gray">✕</button></div>
       <form onsubmit="window.saveInitialBalance(event)" class="space-y-3">
-        <p class="text-xs text-brand-gray">Define o valor atual disponível na tua conta bancária antes dos registos do diário.</p>
+        <p class="text-xs text-brand-gray">Define o valor disponível na tua conta bancária antes dos registos do diário.</p>
         <div>
           <label class="block text-xs font-medium text-brand-gray mb-1">Saldo Inicial (€)</label>
           <input type="number" step="0.01" id="initialBalanceInput" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-sm font-bold text-white">
