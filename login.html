@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mestre das Finanças - Acesso</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: { bg: '#090d16', card: '#121826', border: '#1e293b', accent: '#10b981', gray: '#94a3b8' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-bg text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-md space-y-6">
+    
+    <!-- CABEÇALHO DA MARCA -->
+    <div class="text-center space-y-2">
+      <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-2xl font-bold mx-auto">
+        €
+      </div>
+      <h1 class="text-xl sm:text-2xl font-bold text-white">Mestre das Finanças</h1>
+      <p class="text-xs text-brand-gray">Gestão financeira pessoal de alto rendimento</p>
+    </div>
+
+    <!-- CARD PRINCIPAL -->
+    <div class="bg-brand-card border border-brand-border rounded-2xl p-5 sm:p-6 shadow-2xl space-y-6">
+      
+      <!-- NAV NAVEGAÇÃO ENTRE ABAS -->
+      <div class="flex border-b border-brand-border text-xs font-semibold">
+        <button id="btnTabLogin" onclick="switchForm('login')" class="flex-1 pb-3 text-emerald-400 border-b-2 border-emerald-400 transition font-bold">Entrar</button>
+        <button id="btnTabPlan" onclick="switchForm('plan')" class="flex-1 pb-3 text-brand-gray hover:text-white transition">Comprar Acesso</button>
+      </div>
+
+      <!-- FORMULÁRIO 1: LOGIN DA CONTA -->
+      <form id="formLogin" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs text-brand-gray mb-1">Email</label>
+          <input type="email" id="loginEmail" required placeholder="seu@email.com" class="w-full bg-brand-bg border border-brand-border rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs text-brand-gray mb-1">Palavra-passe</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full bg-brand-bg border border-brand-border rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <button type="submit" id="btnSubmitLogin" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl text-xs transition shadow-lg shadow-emerald-500/20">
+          Entrar na Plataforma
+        </button>
+      </form>
+
+      <!-- PLANO DE SUBSCREVER (NOVOS CLIENTES) -->
+      <div id="sectionPlan" class="space-y-4 hidden">
+        <div class="bg-brand-bg p-4 rounded-xl border border-emerald-500/30 space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold text-white">Subscrição Mensal</span>
+            <span class="text-xs font-bold text-emerald-400">5,99€ <span class="text-[10px] text-brand-gray">/mês</span></span>
+          </div>
+          <ul class="text-[11px] text-brand-gray space-y-1.5 pt-2 border-t border-brand-border">
+            <li>✓ Acesso total ao Dashboard e Relatórios</li>
+            <li>✓ Módulo de Previsibilidade e Investimentos</li>
+            <li>✓ Diagnóstico de Inteligência Financeira</li>
+            <li>✓ Cancelamento simples a qualquer momento</li>
+          </ul>
+        </div>
+        
+        <button type="button" onclick="redirectToCheckout()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl text-xs transition shadow-lg shadow-emerald-500/20">
+          Adquirir Subscrição no Stripe
+        </button>
+      </div>
+
+    </div>
+
+    <p class="text-center text-[10px] text-brand-gray">
+      Pagamentos processados com encriptação SSL de 256 bits via Stripe.
+    </p>
+
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://iafaafpuugamvmtrkmzc.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhZmFhZnB1dWdhbXZtdHJrbXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxMDM0MDYsImV4cCI6MjEwODY3OTQwNn0.K0YrGVJJrGi8UgKOxsBZoW8G7YJuCsadYNUoudBvzvo";
+
+    let supabaseClient = null;
+    try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){}
+
+    function switchForm(tab) {
+      if (tab === 'login') {
+        document.getElementById('formLogin').classList.remove('hidden');
+        document.getElementById('sectionPlan').classList.add('hidden');
+        document.getElementById('btnTabLogin').className = "flex-1 pb-3 text-emerald-400 border-b-2 border-emerald-400 transition font-bold";
+        document.getElementById('btnTabPlan').className = "flex-1 pb-3 text-brand-gray hover:text-white transition";
+      } else {
+        document.getElementById('formLogin').classList.add('hidden');
+        document.getElementById('sectionPlan').classList.remove('hidden');
+        document.getElementById('btnTabPlan').className = "flex-1 pb-3 text-emerald-400 border-b-2 border-emerald-400 transition font-bold";
+        document.getElementById('btnTabLogin').className = "flex-1 pb-3 text-brand-gray hover:text-white transition";
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('btnSubmitLogin');
+
+      btn.disabled = true;
+      btn.innerText = "A autenticar...";
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        alert("Erro no login: " + error.message);
+        btn.disabled = false;
+        btn.innerText = "Entrar na Plataforma";
+        return;
+      }
+
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profile && profile.subscription_status === 'active') {
+        window.location.href = "index.html"; 
+      } else {
+        alert("A sua subscrição encontra-se inativa ou pendente de pagamento.");
+        btn.disabled = false;
+        btn.innerText = "Entrar na Plataforma";
+      }
+    }
+
+    function redirectToCheckout() {
+      // COLOQUE O SEU LINK DO STRIPE AQUI DENTRO DAS ASPAS:
+      window.location.href = "https://buy.stripe.com/test_00wfZhddI4nO7QHfPodjO00";
+    }
+  </script>
+
+</body>
+</html>
