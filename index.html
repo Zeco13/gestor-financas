@@ -102,6 +102,7 @@
     let selectedJournalMonth = 'todos';
     let selectedBarMonth = 'todos';
     let selectedPieMonth = 'todos';
+    let selectedPieCategory = null;
     let sidebarCollapsed = true;
 
     window.toggleSidebar = function() {
@@ -461,7 +462,7 @@
 
     window.runAIAnalysis = function() {
       let totalRec = 0, totalDesp = 0;
-      appState.transactions.forEach(t => {
+      (Array.isArray(appState.transactions) ? appState.transactions : []).forEach(t => {
         if (t.type === 'receita') totalRec += t.amount;
         if (t.type === 'despesa') totalDesp += t.amount;
       });
@@ -529,6 +530,9 @@ if (session && session.user && session.user.email) {
 
   if (userData && userData.payload && Object.keys(userData.payload).length > 0) {
     appState = userData.payload;
+    if (!Array.isArray(appState.transactions)) appState.transactions = [];
+    if (!Array.isArray(appState.categories)) appState.categories = [];
+    if (!Array.isArray(appState.forecasts)) appState.forecasts = [];
   }
 }
 
@@ -559,7 +563,7 @@ window.logout = async function() {
       renderCategoryPieAndList();
       renderRecent();
       renderJournalFilterButtons();
-      renderJournal();
+      window.renderJournal();
       renderForecasts();
       renderCategories();
       renderInvestments();
@@ -576,7 +580,7 @@ window.logout = async function() {
 
     function renderKPIs() {
       let rec = 0, desp = 0, inv = 0;
-      appState.transactions.forEach(t => {
+      (Array.isArray(appState.transactions) ? appState.transactions : []).forEach(t => {
         if(t.type==='receita') rec += t.amount;
         if(t.type==='despesa') desp += t.amount;
         if(t.type==='investimento') inv += t.amount;
@@ -589,7 +593,7 @@ window.logout = async function() {
     }
 
     function populateChartDropdowns() {
-      const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
+      const months = [...new Set((Array.isArray(appState.transactions) ? appState.transactions : []).map(t => t.date.substring(0, 7)))].sort().reverse();
       const selBar = document.getElementById('barChartFilter');
       const selPie = document.getElementById('pieChartFilter');
       if (!selBar || !selPie) return;
@@ -608,6 +612,7 @@ window.logout = async function() {
 
     window.onPieChartFilterChange = function(m) {
       selectedPieMonth = m;
+      selectedPieCategory = null;
       renderCategoryPieAndList();
     };
 
@@ -659,63 +664,75 @@ window.logout = async function() {
       listEl.innerHTML = '';
       pieSvg.innerHTML = '';
 
-      let txs = appState.transactions.filter(t => t.type === 'despesa');
-      if (selectedPieMonth !== 'todos') {
-        txs = txs.filter(t => t.date.startsWith(selectedPieMonth));
-      }
+      const txs = (Array.isArray(appState.transactions) ? appState.transactions : [])
+        .filter(t => t && t.type === 'despesa' && t.date &&
+          (selectedPieMonth === 'todos' || String(t.date).startsWith(selectedPieMonth)));
 
-      let catTotals = {};
-      let totalDesp = 0;
+      const totals = {};
+      let total = 0;
       txs.forEach(t => {
-        catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
-        totalDesp += t.amount;
+        const key = selectedPieCategory ? (t.subcategory || 'Geral') : (t.category || 'Outros');
+        if (selectedPieCategory && t.category !== selectedPieCategory) return;
+        totals[key] = (totals[key] || 0) + (Number(t.amount) || 0);
+        total += Number(t.amount) || 0;
       });
 
-      if (totalDesp === 0) {
-        listEl.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray">Sem despesas registadas no período.</p>`;
+      if (selectedPieCategory) {
+        listEl.innerHTML = `<button type="button" id="pieBackToCategories" class="text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] sm:text-xs mb-1">← Voltar às Categorias</button><p class="text-white font-bold text-[11px] sm:text-xs mb-2">${selectedPieCategory}</p>`;
+      }
+
+      if (total <= 0 || Object.keys(totals).length === 0) {
+        listEl.innerHTML += `<p class="text-[11px] sm:text-xs text-brand-gray">Sem despesas registadas no período.</p>`;
         pieSvg.innerHTML = `<circle cx="16" cy="16" r="15.915" fill="none" stroke="#1e293b" stroke-width="4" />`;
+        const back = document.getElementById('pieBackToCategories');
+        if (back) back.addEventListener('click', () => { selectedPieCategory = null; renderCategoryPieAndList(); });
         return;
       }
 
       let cumulativePct = 0;
-      Object.keys(catTotals).forEach(catName => {
-        const amt = catTotals[catName];
-        const pct = (amt / totalDesp) * 100;
-        const catObj = appState.categories.find(c => c.name === catName) || { icon: 'tag', color: '#94a3b8' };
+      Object.entries(totals).forEach(([name, amt]) => {
+        const pct = (amt / total) * 100;
+        const categoryName = selectedPieCategory || name;
+        const catObj = appState.categories.find(c => c.name === categoryName) || { icon: 'tag', color: '#94a3b8' };
+        const color = catObj.color || '#94a3b8';
         const iconEntry = iconLibrary[catObj.icon] || iconLibrary['tag'];
-        const svgIcon = iconEntry.svg;
         const strokeDasharray = `${pct} ${100 - pct}`;
         const strokeDashoffset = 100 - cumulativePct + 25;
         cumulativePct += pct;
-
-        pieSvg.innerHTML += `
-          <circle cx="16" cy="16" r="15.915" fill="none" 
-                  stroke="${catObj.color}" stroke-width="4" 
-                  stroke-dasharray="${strokeDasharray}" 
-                  stroke-dashoffset="${strokeDashoffset}">
-          </circle>
-        `;
-
+        const safeName = String(name).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const dataAttr = selectedPieCategory ? '' : ` data-pie-category="${safeName}"`;
+        pieSvg.innerHTML += `<circle cx="16" cy="16" r="15.915" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"${dataAttr} style="${selectedPieCategory ? '' : 'cursor:pointer'}"></circle>`;
         listEl.innerHTML += `
-          <div class="space-y-1">
+          <div class="space-y-1 ${selectedPieCategory ? '' : 'cursor-pointer'}" ${selectedPieCategory ? '' : `data-pie-category-row="${safeName}"`}>
             <div class="flex justify-between text-[11px] sm:text-xs">
               <span class="text-white flex items-center gap-1.5 truncate">
-                <span class="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style="background-color: ${catObj.color}20; color: ${catObj.color}">${svgIcon}</span> <span class="truncate">${catName}</span>
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color:${color}"></span>
+                <span class="truncate">${safeName}</span>
               </span>
               <span class="text-brand-gray font-medium flex-shrink-0 ml-2">${formatEUR(amt)} (${pct.toFixed(1)}%)</span>
             </div>
-            <div class="w-full h-1.5 bg-brand-bg rounded-full overflow-hidden">
-              <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${catObj.color}"></div>
-            </div>
-          </div>
-        `;
+            <div class="w-full h-1.5 bg-brand-bg rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%;background-color:${color}"></div></div>
+          </div>`;
       });
+
+      const back = document.getElementById('pieBackToCategories');
+      if (back) back.addEventListener('click', () => { selectedPieCategory = null; renderCategoryPieAndList(); });
+      if (!selectedPieCategory) {
+        pieSvg.querySelectorAll('[data-pie-category]').forEach(el => el.addEventListener('click', () => {
+          selectedPieCategory = el.getAttribute('data-pie-category');
+          renderCategoryPieAndList();
+        }));
+        listEl.querySelectorAll('[data-pie-category-row]').forEach(el => el.addEventListener('click', () => {
+          selectedPieCategory = el.getAttribute('data-pie-category-row');
+          renderCategoryPieAndList();
+        }));
+      }
     }
 
     function renderRecent() {
       const el = document.getElementById('recentTransactionsList');
       if(el) {
-        if (appState.transactions.length === 0) {
+        if ((Array.isArray(appState.transactions) ? appState.transactions.length : 0) === 0) {
           el.innerHTML = `<p class="text-[11px] sm:text-xs text-brand-gray">Sem atividades recentes.</p>`;
           return;
         }
@@ -745,7 +762,7 @@ window.logout = async function() {
     function renderJournalFilterButtons() {
       const container = document.getElementById('journalMonthButtons');
       if (!container) return;
-      const months = [...new Set(appState.transactions.map(t => t.date.substring(0, 7)))].sort().reverse();
+      const months = [...new Set((Array.isArray(appState.transactions) ? appState.transactions : []).map(t => t.date.substring(0, 7)))].sort().reverse();
       let html = `<button onclick="window.filterJournalByMonth('todos')" class="px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold border transition ${selectedJournalMonth === 'todos' ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'bg-brand-card border-brand-border text-brand-gray hover:text-white'}">Todos</button>`;
       months.forEach(m => {
         const active = selectedJournalMonth === m;
@@ -757,14 +774,14 @@ window.logout = async function() {
     window.filterJournalByMonth = function(m) {
       selectedJournalMonth = m;
       renderJournalFilterButtons();
-      renderJournal();
+      window.renderJournal();
     };
 
     window.renderJournal = function() {
       const el = document.getElementById('journalList');
       const countEl = document.getElementById('txCount');
       if(el) {
-        let filtered = appState.transactions;
+        let filtered = Array.isArray(appState.transactions) ? appState.transactions : [];
         if (selectedJournalMonth !== 'todos') {
           filtered = filtered.filter(t => t.date.startsWith(selectedJournalMonth));
         }
@@ -998,7 +1015,7 @@ window.logout = async function() {
       subcats.forEach(s => totals[s] = 0);
       let totalInv = 0, totalResgatado = 0;
 
-      appState.transactions.forEach(t => {
+      (Array.isArray(appState.transactions) ? appState.transactions : []).forEach(t => {
         if (t.type === 'investimento') {
           totals[t.subcategory] = (totals[t.subcategory] || 0) + t.amount;
           totalInv += t.amount;
