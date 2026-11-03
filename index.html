@@ -866,8 +866,12 @@ window.logout = async function() {
 
       const excedente = totalPrevRec - totalPrevDesp;
       const valInvestimento = totalPrevRec * (settings.pctInvestment / 100);
-      const valA = (totalPrevRec * (settings.pctA / 100)) + settings.extraA;
-      const valB = (totalPrevRec * (settings.pctB / 100)) + settings.extraB;
+      // A percentagem de cada sujeito incide apenas sobre a sua quota-parte
+      // do rendimento total, dividida pelo número de sujeitos configurados.
+      const numeroSujeitos = [settings.nameA, settings.nameB].filter(name => String(name || '').trim()).length || 1;
+      const rendimentoPorSujeito = totalPrevRec / numeroSujeitos;
+      const valA = (rendimentoPorSujeito * (settings.pctA / 100)) + Number(settings.extraA || 0);
+      const valB = (rendimentoPorSujeito * (settings.pctB / 100)) + Number(settings.extraB || 0);
 
       if(statsEl) {
         statsEl.innerHTML = `
