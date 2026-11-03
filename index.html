@@ -62,6 +62,22 @@
     }
 
     
+
+    /* Preferências pessoais: tema claro */
+    body.light-mode { background:#f1f5f9 !important; color:#0f172a !important; }
+    body.light-mode .bg-brand-bg, body.light-mode .bg-\[\#090d16\] { background-color:#e2e8f0 !important; }
+    body.light-mode .bg-brand-card, body.light-mode header { background-color:#ffffff !important; }
+    body.light-mode .border-brand-border, body.light-mode .border-\[\#1e293b\] { border-color:#cbd5e1 !important; }
+    body.light-mode .text-white { color:#0f172a !important; }
+    body.light-mode .text-brand-gray, body.light-mode .text-\[\#94a3b8\] { color:#475569 !important; }
+    body.light-mode input, body.light-mode select, body.light-mode textarea { background-color:#f8fafc !important; color:#0f172a !important; border-color:#cbd5e1 !important; }
+    body.light-mode .bg-brand-card\/40 { background-color:#f8fafc !important; }
+    body.light-mode ::-webkit-scrollbar-track { background:#f1f5f9; }
+    body.light-mode ::-webkit-scrollbar-thumb { background:#cbd5e1; }
+    .profile-menu { position:absolute; right:0; top:calc(100% + 10px); width:min(290px, calc(100vw - 24px)); z-index:80; }
+    .profile-menu button { width:100%; text-align:left; }
+    .settings-overlay { background:rgba(2,6,23,.72); backdrop-filter:blur(4px); }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #090d16; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -120,7 +136,8 @@
         { name: "Rendimentos", color: "#22c55e", icon: "wallet", subcategories: ["Ordenado", "Freelance", "Investimentos / Dividendos"] }
       ],
       transactions: [],
-      forecasts: []
+      forecasts: [],
+      userPreferences: { displayName: '', currency: 'EUR', language: 'pt', theme: 'dark' }
     };
 
     let selectedJournalMonth = 'todos';
@@ -515,6 +532,64 @@
       document.getElementById('aiRecommendationsList').innerHTML = recsList.map(r => `<p class="leading-relaxed">• ${r}</p>`).join('');
     };
 
+
+    const preferenceDefaults = { displayName:'', currency:'EUR', language:'pt', theme:'dark' };
+    const languageNames = { pt:'Português', en:'English', fr:'Français', de:'Deutsch' };
+    const languageFlags = { pt:'🇵🇹', en:'🇬🇧', fr:'🇫🇷', de:'🇩🇪' };
+    const uiTranslations = {
+      en: {'Mestre das Finanças':'Mestre das Finanças','Visão Geral':'Overview','Transações':'Transactions','Calendário':'Calendar','Previsibilidade':'Forecast','Investimentos':'Investments','Categorias':'Categories','Relatórios & IA':'Reports & AI','Sair':'Log out','Menu':'Menu','Editar Perfil':'Edit profile','Mudar Password':'Change password','Configurações':'Settings','Nome':'Name','Guardar':'Save','Cancelar':'Cancel','Moeda':'Currency','Idioma':'Language','Tema':'Theme','Dark Mode':'Dark mode','Light Mode':'Light mode','Euro':'Euro','Dólar Americano':'US Dollar','Real Brasileiro':'Brazilian Real','Português':'Portuguese','Inglês':'English','Francês':'French','Alemão':'German','Guardar configurações':'Save settings','As alterações foram guardadas.':'Your changes have been saved.','Introduza o nome que pretende apresentar na plataforma.':'Enter the name you want displayed on the platform.','A palavra-passe será alterada através de um link enviado para o seu email.':'Your password will be changed using a link sent to your email.','Enviar email de recuperação':'Send recovery email'},
+      fr: {'Mestre das Finanças':'Mestre des Finances','Visão Geral':'Vue générale','Transações':'Transactions','Calendário':'Calendrier','Previsibilidade':'Prévisions','Investimentos':'Investissements','Categorias':'Catégories','Relatórios & IA':'Rapports & IA','Sair':'Déconnexion','Menu':'Menu','Editar Perfil':'Modifier le profil','Mudar Password':'Changer le mot de passe','Configurações':'Paramètres','Nome':'Nom','Guardar':'Enregistrer','Cancelar':'Annuler','Moeda':'Devise','Idioma':'Langue','Tema':'Thème','Dark Mode':'Mode sombre','Light Mode':'Mode clair','Euro':'Euro','Dólar Americano':'Dollar américain','Real Brasileiro':'Réal brésilien','Português':'Portugais','Inglês':'Anglais','Francês':'Français','Alemão':'Allemand','Guardar configurações':'Enregistrer les paramètres','As alterações foram guardadas.':'Vos modifications ont été enregistrées.','Introduza o nome que pretende apresentar na plataforma.':'Saisissez le nom à afficher sur la plateforme.','A palavra-passe será alterada através de um link enviado para o seu email.':'Le mot de passe sera modifié via un lien envoyé par e-mail.','Enviar email de recuperação':'Envoyer un e-mail de récupération'},
+      de: {'Mestre das Finanças':'Meister der Finanzen','Visão Geral':'Übersicht','Transações':'Transaktionen','Calendário':'Kalender','Previsibilidade':'Prognose','Investimentos':'Investitionen','Categorias':'Kategorien','Relatórios & IA':'Berichte & KI','Sair':'Abmelden','Menu':'Menü','Editar Perfil':'Profil bearbeiten','Mudar Password':'Passwort ändern','Configurações':'Einstellungen','Nome':'Name','Guardar':'Speichern','Cancelar':'Abbrechen','Moeda':'Währung','Idioma':'Sprache','Tema':'Design','Dark Mode':'Dunkler Modus','Light Mode':'Heller Modus','Euro':'Euro','Dólar Americano':'US-Dollar','Real Brasileiro':'Brasilianischer Real','Português':'Portugiesisch','Inglês':'Englisch','Francês':'Französisch','Alemão':'Deutsch','Guardar configurações':'Einstellungen speichern','As alterações foram guardadas.':'Änderungen wurden gespeichert.','Introduza o nome que pretende apresentar na plataforma.':'Geben Sie den Namen ein, der auf der Plattform angezeigt werden soll.','A palavra-passe será alterada através de um link enviado para o seu email.':'Das Passwort wird über einen Link geändert, der per E-Mail gesendet wird.','Enviar email de recuperação':'Wiederherstellungs-E-Mail senden'}
+    };
+    function getPrefs(){ appState.userPreferences = {...preferenceDefaults, ...(appState.userPreferences||{})}; return appState.userPreferences; }
+    function applyTheme(){ const p=getPrefs(); document.body.classList.toggle('light-mode',p.theme==='light'); }
+    function applyLanguage(){
+      const lang=getPrefs().language || 'pt'; document.documentElement.lang=lang;
+      const dict=uiTranslations[lang]||{};
+      document.querySelectorAll('body *').forEach(el=>{
+        if(el.children.length===0 && el.dataset.originalText){ const original=el.dataset.originalText; const translated=dict[original]||original; if(el.textContent!==translated)el.textContent=translated; }
+        else if(el.children.length===0 && el.textContent.trim()) { const original=el.textContent.trim(); if(dict[original]) { el.dataset.originalText=original; el.textContent=dict[original]; } }
+      });
+    }
+    function applyPreferences(){ applyTheme(); applyLanguage(); updateProfileLabel(); }
+    function updateProfileLabel(){ const el=document.getElementById('userEmailDisplay'); if(!el)return; const p=getPrefs(); el.textContent=(p.displayName|| (window.currentUserEmail||'Conta')).trim(); el.title=window.currentUserEmail||''; const n=document.getElementById('profileMenuName'); const em=document.getElementById('profileMenuEmail'); if(n)n.textContent=p.displayName||'Perfil'; if(em)em.textContent=window.currentUserEmail||''; }
+    window.toggleProfileMenu=function(){ const m=document.getElementById('profileMenu'); if(m)m.classList.toggle('hidden'); };
+    window.openProfileModal=function(section){
+      const menu=document.getElementById('profileMenu'); if(menu)menu.classList.add('hidden');
+      const modal=document.getElementById('profileSettingsModal'); if(!modal)return;
+      const p=getPrefs();
+      document.getElementById('profileNameInput').value=p.displayName||'';
+      const recoveryEmail=document.getElementById('passwordRecoveryEmail'); if(recoveryEmail)recoveryEmail.textContent=window.currentUserEmail||'';
+      document.getElementById('prefCurrency').value=p.currency||'EUR';
+      document.getElementById('prefLanguage').value=p.language||'pt';
+      document.getElementById('prefTheme').value=p.theme||'dark';
+      document.getElementById('profileSectionTitle').textContent=section==='profile'?'Editar Perfil':section==='password'?'Mudar Password':'Configurações';
+      document.getElementById('profileEditSection').classList.toggle('hidden',section!=='profile');
+      document.getElementById('profileSettingsSection').classList.toggle('hidden',section!=='settings');
+      document.getElementById('profilePasswordSection').classList.toggle('hidden',section!=='password');
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+    };
+    window.closeProfileModal=function(){const m=document.getElementById('profileSettingsModal');if(m){m.classList.add('hidden');m.classList.remove('flex');}};
+    window.saveDisplayName=async function(){
+      const name=document.getElementById('profileNameInput').value.trim();
+      if(!name){alert('Introduza um nome válido.');return;}
+      getPrefs().displayName=name; await saveData(); updateProfileLabel(); alert('Nome atualizado com sucesso.'); window.closeProfileModal();
+    };
+    window.savePreferences=async function(){
+      const p=getPrefs(); p.currency=document.getElementById('prefCurrency').value; p.language=document.getElementById('prefLanguage').value; p.theme=document.getElementById('prefTheme').value;
+      await saveData(); applyPreferences(); renderAll(); alert('As alterações foram guardadas.'); window.closeProfileModal();
+    };
+    window.sendPasswordRecovery=async function(){
+      if(!supabaseClient || !window.currentUserEmail){alert('Não foi possível identificar o email da conta.');return;}
+      const redirect=window.location.origin + '/login.html?recovery=1';
+      const {error}=await supabaseClient.auth.resetPasswordForEmail(window.currentUserEmail,{redirectTo:redirect});
+      if(error){alert('Não foi possível enviar o email: '+error.message);return;}
+      alert('Enviámos um link de recuperação para '+window.currentUserEmail+'.'); window.closeProfileModal();
+    };
+    document.addEventListener('click',e=>{const wrap=document.getElementById('profileMenuWrap');if(wrap&&!wrap.contains(e.target)){const m=document.getElementById('profileMenu');if(m)m.classList.add('hidden');}});
+    const languageObserver = new MutationObserver(()=>{ if(getPrefs().language!=='pt') applyLanguage(); });
+    document.addEventListener('DOMContentLoaded',()=>{languageObserver.observe(document.body,{childList:true,subtree:true});});
+
     let currentUserId = null;
 
 async function loadData() {
@@ -530,6 +605,7 @@ async function loadData() {
   }
 
   currentUserId = session.user.id;
+  window.currentUserEmail = session.user.email || '';
 
 if (session && session.user && session.user.email) {
     const emailEl = document.getElementById('userEmailDisplay');
@@ -562,6 +638,8 @@ if (session && session.user && session.user.email) {
     if (!Array.isArray(appState.categories)) appState.categories = [];
     if (!Array.isArray(appState.forecasts)) appState.forecasts = [];
   }
+  getPrefs();
+  applyPreferences();
 }
 
 async function saveData() {
@@ -1289,7 +1367,7 @@ window.logout = async function() {
       `;
     }
 
-    function formatEUR(v) { return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v || 0); }
+    function formatEUR(v) { const p=getPrefs(); const locale={EUR:'pt-PT',USD:'en-US',BRL:'pt-BR'}[p.currency]||'pt-PT'; return new Intl.NumberFormat(locale,{style:'currency',currency:p.currency||'EUR'}).format(v||0); }
 
     window.addEventListener('DOMContentLoaded', async () => {
       const dateEl = document.getElementById('txDate');
@@ -1314,7 +1392,15 @@ window.logout = async function() {
     
     <div class="flex items-center space-x-3">
       <!-- Onde vai aparecer o email do utilizador -->
-      <span id="userEmailDisplay" class="text-xs text-[#94a3b8] hidden sm:inline font-medium">A carregar...</span>
+      <div id="profileMenuWrap" class="relative">
+        <button id="userEmailDisplay" type="button" onclick="toggleProfileMenu()" class="text-xs text-[#94a3b8] font-medium hover:text-emerald-400 transition max-w-[42vw] truncate" title="Perfil">A carregar...</button>
+        <div id="profileMenu" class="profile-menu hidden rounded-xl border border-brand-border bg-brand-card shadow-2xl p-2">
+          <div class="px-3 py-2 border-b border-brand-border mb-1"><p id="profileMenuName" class="text-xs font-bold text-white">Perfil</p><p id="profileMenuEmail" class="text-[10px] text-brand-gray break-all"></p></div>
+          <button type="button" onclick="openProfileModal('profile')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">👤 <span>Editar Perfil</span></button>
+          <button type="button" onclick="openProfileModal('password')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">🔒 <span>Mudar Password</span></button>
+          <button type="button" onclick="openProfileModal('settings')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">⚙️ <span>Configurações</span></button>
+        </div>
+      </div>
       
       <!-- Botão de Sair -->
       <button onclick="logout()" type="button" class="bg-[#090d16] hover:bg-rose-500/20 text-[#94a3b8] hover:text-rose-400 border border-[#1e293b] hover:border-rose-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer">
@@ -1719,6 +1805,21 @@ window.logout = async function() {
       <div class="p-4 border-b border-brand-border flex items-center justify-between gap-3"><h3 id="calendarDetailsTitle" class="font-bold text-white text-sm sm:text-base capitalize">Entradas do dia</h3><button type="button" onclick="window.closeCalendarDetails()" class="text-brand-gray hover:text-white text-xl leading-none" aria-label="Fechar">×</button></div>
       <div id="calendarDetailsBody" class="p-3 sm:p-4 space-y-2 overflow-y-auto"></div>
       <div class="p-3 border-t border-brand-border flex justify-end"><button type="button" onclick="window.closeCalendarDetails()" class="px-4 py-2 rounded-xl bg-brand-border text-xs text-white">Fechar</button></div>
+    </div>
+  </div>
+
+
+  <div id="profileSettingsModal" class="settings-overlay fixed inset-0 z-[100] items-center justify-center p-3 sm:p-6 hidden" onclick="if(event.target===this)closeProfileModal()">
+    <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-brand-border bg-brand-card shadow-2xl">
+      <div class="flex items-center justify-between p-4 border-b border-brand-border"><h2 id="profileSectionTitle" class="font-bold text-white">Configurações</h2><button type="button" onclick="closeProfileModal()" class="text-brand-gray hover:text-white text-2xl">×</button></div>
+      <section id="profileEditSection" class="p-4 space-y-3 hidden"><p class="text-xs text-brand-gray">Introduza o nome que pretende apresentar na plataforma.</p><label class="block text-xs text-brand-gray">Nome</label><input id="profileNameInput" maxlength="60" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm" placeholder="O seu nome"><button type="button" onclick="saveDisplayName()" class="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold p-3 text-sm">Guardar</button></section>
+      <section id="profilePasswordSection" class="p-4 space-y-3 hidden"><p class="text-xs text-brand-gray">A palavra-passe será alterada através de um link enviado para o seu email.</p><p id="passwordRecoveryEmail" class="text-sm text-white break-all"></p><button type="button" onclick="sendPasswordRecovery()" class="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold p-3 text-sm">Enviar email de recuperação</button></section>
+      <section id="profileSettingsSection" class="p-4 space-y-4 hidden">
+        <div><label class="block text-xs font-semibold text-brand-gray mb-2">💱 Moeda</label><select id="prefCurrency" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm"><option value="EUR">🇪🇺 Euro (€)</option><option value="USD">🇺🇸 Dólar Americano ($)</option><option value="BRL">🇧🇷 Real Brasileiro (R$)</option></select><p class="text-[10px] text-brand-gray mt-1">A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.</p></div>
+        <div><label class="block text-xs font-semibold text-brand-gray mb-2">🌐 Idioma</label><select id="prefLanguage" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm"><option value="pt">🇵🇹 Português</option><option value="en">🇬🇧 English</option><option value="fr">🇫🇷 Français</option><option value="de">🇩🇪 Deutsch</option></select><p class="text-[10px] text-brand-gray mt-1">Traduções incorporadas, sem serviços externos ou custos de API. Os textos introduzidos pelos utilizadores mantêm-se na língua original.</p></div>
+        <div><label class="block text-xs font-semibold text-brand-gray mb-2">🎨 Tema</label><select id="prefTheme" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm"><option value="dark">🌙 Dark Mode</option><option value="light">☀️ Light Mode</option></select></div>
+        <button type="button" onclick="savePreferences()" class="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold p-3 text-sm">Guardar configurações</button>
+      </section>
     </div>
   </div>
 
