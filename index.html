@@ -334,45 +334,41 @@
       const worker = await getTesseractWorker(statusCallback);
       try {
         const full = await worker.recognize(canvas);
-        // A entidade costuma estar no cabeçalho, sobretudo no canto superior esquerdo.
-        // O recorte dedicado aumenta a resolução dessa zona e evita confundir texto do corpo.
-        const crop = document.createElement('canvas');
-        const cropWidth = Math.max(1, Math.floor(canvas.width * 0.48));
-        const cropHeight = Math.max(1, Math.floor(canvas.height * 0.34));
-        const scale = Math.max(1, Math.min(2, 1800 / cropWidth));
-        crop.width = Math.round(cropWidth * scale);
-        crop.height = Math.round(cropHeight * scale);
-        const cropContext = crop.getContext('2d');
-        cropContext.filter = 'grayscale(1) contrast(1.35)';
-        cropContext.drawImage(canvas, 0, 0, cropWidth, cropHeight, 0, 0, crop.width, crop.height);
-        cropContext.filter = 'none';
-        const header = await worker.recognize(crop);
-        // Segunda leitura, mais focada no espaço normalmente ocupado pelo logótipo.
-        // O modo de segmentação de linha/bloco ajuda em marcas estilizadas como o logótipo EDP.
-        const logoCrop = document.createElement('canvas');
-        // Recorte adicional do centro do primeiro símbolo/logótipo do cabeçalho.
-        // Em faturas como a EDP, o nome está dentro do emblema e não é lido no OCR da página inteira.
-        const logoX = Math.floor(canvas.width * 0.123);
-        const logoY = Math.floor(canvas.height * 0.172);
-        const logoWidth = Math.max(1, Math.floor(canvas.width * 0.086));
-        const logoHeight = Math.max(1, Math.floor(canvas.height * 0.095));
-        const logoScale = Math.max(6, Math.min(10, 1800 / logoWidth));
-        logoCrop.width = Math.round(logoWidth * logoScale);
-        logoCrop.height = Math.round(logoHeight * logoScale);
-        const logoContext = logoCrop.getContext('2d');
-        logoContext.filter = 'grayscale(1) contrast(1.8)';
-        logoContext.drawImage(canvas, logoX, logoY, logoWidth, logoHeight, 0, 0, logoCrop.width, logoCrop.height);
-        logoContext.filter = 'none';
-        let logoText = '';
-        try {
-          await worker.setParameters({ tessedit_pageseg_mode: '6' });
-          const logo = await worker.recognize(logoCrop);
-          logoText = logo.data.text || '';
-          await worker.setParameters({ tessedit_pageseg_mode: '3' });
-        } catch (logoError) {
-          console.warn('Leitura específica do logótipo não concluída:', logoError);
+        // A marca costuma estar no cabeçalho. Fazemos leituras independentes de
+        // uma área ampla superior esquerda e de uma área mais estreita do logótipo,
+        // sem assumir coordenadas fixas de uma entidade específica.
+        const crops = [];
+        const makeCrop = (x, y, w, h, label) => {
+          const crop = document.createElement('canvas');
+          const sx = Math.floor(canvas.width * x), sy = Math.floor(canvas.height * y);
+          const sw = Math.max(1, Math.floor(canvas.width * w));
+          const sh = Math.max(1, Math.floor(canvas.height * h));
+          const scale = Math.max(2, Math.min(4, 2400 / sw));
+          crop.width = Math.round(sw * scale);
+          crop.height = Math.round(sh * scale);
+          const ctx = crop.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, crop.width, crop.height);
+          ctx.filter = 'grayscale(1) contrast(1.45)';
+          ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+          ctx.filter = 'none';
+          crops.push({ canvas: crop, label });
+        };
+        makeCrop(0, 0, 0.62, 0.42, 'cabeçalho superior esquerdo');
+        makeCrop(0, 0, 0.48, 0.27, 'zona do logótipo');
+        makeCrop(0, 0.06, 0.58, 0.34, 'texto da entidade no cabeçalho');
+        const headerReads = [];
+        for (const item of crops) {
+          try {
+            await worker.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' });
+            const result = await worker.recognize(item.canvas);
+            const recognized = (result.data.text || '').trim();
+            if (recognized) headerReads.push(`(${item.label})\n${recognized}`);
+          } catch (cropError) {
+            console.warn('Leitura de cabeçalho incompleta:', cropError);
+          }
         }
-        return { text: full.data.text || '', topLeftText: [header.data.text || '', logoText].filter(Boolean).join('\n') };
+        await worker.setParameters({ tessedit_pageseg_mode: '3' });
+        return { text: full.data.text || '', topLeftText: headerReads.join('\n\n') };
       } finally {
         await worker.terminate();
       }
@@ -402,14 +398,14 @@
             const y = item.transform && item.transform[5];
             return Number.isFinite(x) && Number.isFinite(y) && x <= pageView[0] + pageWidth * 0.48 && y >= pageView[1] + pageHeight * 0.66;
           }).map(item => item.str || '').filter(Boolean).join(' ');
-          if (positionedHeader) topLeftText = positionedHeader;
+          if (positionedHeader) topLeftText += (topLeftText ? '\n' : '') + positionedHeader;
           const viewport = page.getViewport({ scale: 2.5 });
           const canvas = document.createElement('canvas');
           canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
           await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
           const ocr = await recognizeDocumentCanvas(canvas, statusCallback);
           extracted += '\n' + ocr.text;
-          topLeftText = ocr.topLeftText;
+          topLeftText += (topLeftText ? '\n' : '') + (ocr.topLeftText || '');
         } else if (pageText.trim().length < 20) {
           const viewport = page.getViewport({ scale: 1.8 });
           const canvas = document.createElement('canvas');
@@ -511,28 +507,37 @@
       return candidates.length ? candidates[0].amount : null;
     }
     function parseDocumentEntity(topLeftText) {
-      const source = String(topLeftText || '');
-      const normalized = normalizeDocumentText(source);
-      // Correspondência conhecida só no cabeçalho, nunca no corpo da fatura.
+      const source = String(topLeftText || '').replace(/\r/g, '\n');
+      const normalized = normalizeDocumentText(source).replace(/[^a-z0-9\n ]/g, ' ');
+      // Primeiro: marcas reconhecidas no cabeçalho. Nunca procurar no corpo da fatura.
       const known = [
-        [/\bedp\b|e\s*d\s*p/i, 'EDP'],
-        [/\bgalp\b/i, 'Galp'],
-        [/\bendesa\b/i, 'Endesa'],
-        [/\biberdrola\b/i, 'Iberdrola'],
-        [/\bmeo\b/i, 'MEO'],
-        [/\bnos\b/i, 'NOS'],
-        [/\bvodafone\b/i, 'Vodafone'],
-        [/\bcontinente\b/i, 'Continente'],
-        [/\bpingo\s*doce\b/i, 'Pingo Doce'],
-        [/\blidl\b/i, 'Lidl'],
-        [/\bauchan\b/i, 'Auchan'],
-        [/\baguas\s+de\s+portugal\b/i, 'Águas de Portugal']
+        [/\bedp\b|\be\s*d\s*p\b/, 'EDP'], [/\bgalp\b/, 'Galp'], [/\bendesa\b/, 'Endesa'],
+        [/\biberdrola\b/, 'Iberdrola'], [/\bgoldenergy\b/, 'Goldenergy'], [/\brepsol\b/, 'Repsol'],
+        [/\bmeo\b/, 'MEO'], [/\bnos\b/, 'NOS'], [/\bvodafone\b/, 'Vodafone'], [/\bdigi\b/, 'DIGI'],
+        [/\bnowo\b/, 'NOWO'], [/\bcontinente\b/, 'Continente'], [/\bpingo\s*doce\b/, 'Pingo Doce'],
+        [/\blidl\b/, 'Lidl'], [/\bauchan\b/, 'Auchan'], [/\bmercadona\b/, 'Mercadona'],
+        [/\bvia\s*verde\b/, 'Via Verde'], [/\bepal\b/, 'EPAL'], [/\baguas\s+de\s+portugal\b/, 'Águas de Portugal'],
+        [/\bfidelidade\b/, 'Fidelidade'], [/\ballianz\b/, 'Allianz'], [/\bageas\b/, 'Ageas'],
+        [/\bmedis\b/, 'Médis'], [/\bmulticare\b/, 'Multicare'], [/\bworten\b/, 'Worten'],
+        [/\bfnac\b/, 'FNAC'], [/\bikea\b/, 'IKEA'], [/\bamazon\b/, 'Amazon'],
+        [/\buber\b/, 'Uber'], [/\bbolt\b/, 'Bolt']
       ];
       for (const [pattern, name] of known) if (pattern.test(normalized)) return name;
-      const lines = source.split(/\r?\n/).map(x => x.replace(/\s+/g,' ').trim()).filter(Boolean);
-      const excluded = /(fatura|factura|recibo|invoice|receipt|comprovativo|documento|nif|vat|contribuinte|telefone|telem[oó]vel|email|www\.|http|data|total|cliente|morada|rua|avenida|codigo|pagina|periodo|consumo)/i;
-      for (const line of lines.slice(0, 12)) {
-        if (line.length >= 2 && line.length <= 65 && /[A-Za-zÀ-ÿ]{3}/.test(line) && !excluded.test(normalizeDocumentText(line)) && !/^\d/.test(line)) return line;
+
+      // Para marcas desconhecidas, só aceitar texto proveniente do recorte do logótipo.
+      // Não usar nomes/endereço do cliente que aparecem também no topo esquerdo da fatura.
+      const logoSection = source.match(/\(zona do log[oó]tipo\)([\s\S]*?)(?=\n\s*\([^)]*\)|$)/i);
+      if (!logoSection) return '';
+      const excluded = /(fatura|factura|recibo|invoice|receipt|comprovativo|documento|nif|vat|contribuinte|telefone|telemovel|email|www|http|data|total|cliente|morada|rua|avenida|codigo|pagina|periodo|consumo|eletricidade|gas natural|servicos|impostos|encargos|pagar|debito|conta|iban|swift|referencia)/i;
+      const lines = logoSection[1].split(/\n+/).map(x => x.replace(/[^A-Za-zÀ-ÿ0-9&'. -]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+      for (const line of lines) {
+        const clean = normalizeDocumentText(line);
+        const words = line.split(/\s+/).filter(Boolean);
+        if (line.length < 3 || line.length > 35 || words.length > 3 || excluded.test(clean) || /\d{2,}/.test(line)) continue;
+        // Uma palavra de marca ou designação empresarial explícita pode ser aceite.
+        // Nomes próprios com várias palavras ficam por confirmar para evitar falsos positivos.
+        const companySuffix = /\b(sa|s a|lda|limitada|unipessoal|group|energy|telecom|servicos|comercial)\b/i.test(clean);
+        if (words.length === 1 || companySuffix) return line;
       }
       return '';
     }
@@ -584,13 +589,15 @@
           window.openAddTransactionModal();
           document.getElementById('txType').value = 'despesa';
           window.onTxTypeChange();
-          document.getElementById('txDate').value = extracted.date || '';
+          // Sem data de pagamento reconhecida, manter o campo vazio para preenchimento manual.
+          // Apenas uma data posterior a hoje encaminha automaticamente para Previsões.
+          document.getElementById('txDate').value = extracted.date ? extracted.date : '';
           document.getElementById('txDesc').value = extracted.entity || '';
           document.getElementById('txAmount').value = extracted.amount !== null ? extracted.amount.toFixed(2) : '';
           document.getElementById('txModalTitle').textContent = 'Confirmar despesa importada';
           const notice = document.getElementById('documentImportNotice');
           if (notice) {
-            notice.textContent = `Leitura concluída. Data de pagamento: ${extracted.date || 'não detetada'} · Valor total a pagar: ${extracted.amount !== null ? extracted.amount.toFixed(2) + ' €' : 'não detetado'} · Entidade: ${extracted.entity || 'não detetada'}. Confirma e edita os campos antes de guardar.`;
+            notice.textContent = `Leitura concluída. Data de pagamento: ${extracted.date || 'não detetada — indica a data manualmente antes de guardar'} · Valor total a pagar: ${extracted.amount !== null ? extracted.amount.toFixed(2) + ' €' : 'não detetado'} · Entidade: ${extracted.entity || 'não detetada'}. Confirma e edita os campos antes de guardar.`;
             notice.classList.remove('hidden');
           }
         }
