@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Mestre das Finanças</title>
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=2">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon.png?v=2">
+  <link rel="apple-touch-icon" href="favicon.png?v=2">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,6 +40,13 @@
     .tab-content.hidden { display: none !important; }
     .sidebar-expanded { width: 240px; min-width: 240px; }
     .sidebar-collapsed { width: 64px; min-width: 64px; }
+    .sidebar-collapsed .sidebar-item { width: 40px; min-width: 40px; margin-left: auto; margin-right: auto; padding-left: 0 !important; padding-right: 0 !important; justify-content: center !important; gap: 0 !important; }
+    .sidebar-collapsed nav { width: 100%; }
+    .sidebar-collapsed nav > div { width: 100%; }
+    .sidebar-collapsed .sidebar-item svg { width: 20px; height: 20px; margin: 0 auto; }
+    .sidebar-social-link { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border-radius: 12px; color: #94a3b8; border: 1px solid transparent; transition: .2s; }
+    .sidebar-social-link:hover { color: #10b981; background: rgba(16,185,129,.10); border-color: rgba(16,185,129,.25); }
+    .sidebar-expanded .sidebar-social-link { width: 100%; justify-content: flex-start; gap: 12px; padding: 0 12px; }
     
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #090d16; }
@@ -204,7 +213,9 @@
     window.saveTransaction = async function(e) {
       e.preventDefault();
       const id = document.getElementById('txId').value;
+      const existingTx = id ? appState.transactions.find(t => t.id === id) : null;
       const txData = {
+        ...(existingTx || {}),
         id: id || Date.now().toString(),
         type: document.getElementById('txType').value,
         date: document.getElementById('txDate').value,
@@ -592,7 +603,7 @@ window.logout = async function() {
       const finalBal = (appState.initialBalance || 0) + rec - desp - inv;
       document.getElementById('kpiSaldoDisplay').innerText = formatEUR(finalBal);
       document.getElementById('kpiReceitas').innerText = formatEUR(rec);
-      document.getElementById('kpiDespesas').innerText = formatEUR(desp);
+      document.getElementById('kpiDespesas').innerText = formatEUR(desp + inv);
       document.getElementById('kpiInvestimento').innerText = formatEUR(inv);
     }
 
@@ -1061,12 +1072,26 @@ window.logout = async function() {
       }
     }
 
+    function getInvestmentSubcategoryBalance(subcategory) {
+      return (appState.transactions || []).reduce((balance, t) => {
+        if (t.type === 'investimento' && t.subcategory === subcategory) {
+          const amount = Number(t.amount || 0);
+          // Compatibilidade com resgates antigos guardados como investimento negativo.
+          return balance + amount;
+        }
+        if (t.type === 'receita' && t.movement === 'resgate' && (t.investmentSubcategory || t.subcategory) === subcategory) {
+          return balance - Number(t.amount || 0);
+        }
+        return balance;
+      }, 0);
+    }
+
     window.openRedeemModal = function() {
       const cat = appState.categories.find(c => c.name.includes('Investimento'));
       const select = document.getElementById('redeemSubcat');
       select.innerHTML = '';
       (cat ? cat.subcategories : []).forEach(sub => {
-        const balance = (appState.transactions || []).filter(t => t.type === 'investimento' && t.subcategory === sub).reduce((sum,t) => sum + Number(t.amount || 0), 0);
+        const balance = getInvestmentSubcategoryBalance(sub);
         select.innerHTML += `<option value="${String(sub).replace(/"/g,'&quot;')}">${sub} — disponível: ${formatEUR(balance)}</option>`;
       });
       document.getElementById('redeemAmount').value = '';
@@ -1079,11 +1104,22 @@ window.logout = async function() {
       const subcategory = document.getElementById('redeemSubcat').value;
       const amount = Number(document.getElementById('redeemAmount').value);
       const date = document.getElementById('redeemDate').value;
-      const category = appState.categories.find(c => c.name.includes('Investimento'));
-      const available = (appState.transactions || []).filter(t => t.type === 'investimento' && t.subcategory === subcategory).reduce((sum,t) => sum + Number(t.amount || 0), 0);
+      const incomeCategory = appState.categories.find(c => c.name === 'Rendimentos');
+      const available = getInvestmentSubcategoryBalance(subcategory);
       if (!subcategory || !date || !Number.isFinite(amount) || amount <= 0) { alert('Indica a subcategoria, a data e um valor válido.'); return; }
       if (amount > available + 0.00001) { alert(`O valor a resgatar excede o saldo disponível nesta subcategoria (${formatEUR(available)}).`); return; }
-      appState.transactions.push({id:'tx_redeem_'+Date.now(), type:'investimento', date, description:'Resgate para C/O - '+subcategory, category:category ? category.name : 'Investimento / Poupança', subcategory, amount:-amount, movement:'resgate'});
+      // Um único movimento de receita aumenta a C/O; a carteira desconta-o da subcategoria de origem.
+      appState.transactions.push({
+        id: 'tx_redeem_' + Date.now(),
+        type: 'receita',
+        date,
+        description: 'Resgate para C/O - ' + subcategory,
+        category: incomeCategory ? incomeCategory.name : 'Rendimentos',
+        subcategory,
+        amount,
+        movement: 'resgate',
+        investmentSubcategory: subcategory
+      });
       await saveData();
       window.closeRedeemModal();
       renderAll();
@@ -1098,9 +1134,14 @@ window.logout = async function() {
 
       (Array.isArray(appState.transactions) ? appState.transactions : []).forEach(t => {
         if (t.type === 'investimento') {
-          totals[t.subcategory] = (totals[t.subcategory] || 0) + Number(t.amount || 0);
-          totalInv += Number(t.amount || 0);
-          if (Number(t.amount || 0) < 0 && (t.movement === 'resgate' || String(t.description || '').includes('Resgate'))) totalResgatado += Math.abs(Number(t.amount || 0));
+          const value = Number(t.amount || 0);
+          totals[t.subcategory] = (totals[t.subcategory] || 0) + value;
+          totalInv += value;
+          if (value < 0 && (t.movement === 'resgate' || String(t.description || '').includes('Resgate'))) totalResgatado += Math.abs(value);
+        } else if (t.type === 'receita' && t.movement === 'resgate') {
+          const sourceSubcategory = t.investmentSubcategory || t.subcategory;
+          totals[sourceSubcategory] = (totals[sourceSubcategory] || 0) - Number(t.amount || 0);
+          totalResgatado += Number(t.amount || 0);
         }
       });
 
@@ -1108,7 +1149,7 @@ window.logout = async function() {
       const elEm = document.getElementById('invEmergencia');
       const elMer = document.getElementById('invMercados');
       const elRes = document.getElementById('invResgatado');
-      if(elTot) elTot.innerText = formatEUR(totalInv);
+      if(elTot) elTot.innerText = formatEUR(totalInv - totalResgatado);
       if(elEm) elEm.innerText = formatEUR(totals["Reserva de Emergência"] || 0);
       if(elMer) elMer.innerText = formatEUR((totals["Ações & ETFs"] || 0) + (totals["PPR / Reforma"] || 0));
       if(elRes) elRes.innerText = formatEUR(totalResgatado);
@@ -1134,7 +1175,7 @@ window.logout = async function() {
       let cumulativeData = {};
       let runningTotal = 0;
       const sortedTxs = [...appState.transactions]
-        .filter(t => t.type === 'investimento')
+        .filter(t => t.type === 'investimento' || (t.type === 'receita' && t.movement === 'resgate'))
         .sort((a,b) => new Date(a.date) - new Date(b.date));
 
       if (sortedTxs.length === 0) {
@@ -1144,6 +1185,7 @@ window.logout = async function() {
       sortedTxs.forEach(t => {
         const m = t.date.substring(0, 7);
         if (t.type === 'investimento') runningTotal += Number(t.amount || 0);
+        else if (t.type === 'receita' && t.movement === 'resgate') runningTotal -= Number(t.amount || 0);
         cumulativeData[m] = runningTotal;
       });
       const keys = Object.keys(cumulativeData);
@@ -1255,6 +1297,16 @@ window.logout = async function() {
           </button>
         </div>
       </nav>
+    </div>
+    <div class="p-3 sm:p-4 border-t border-brand-border/50 space-y-1">
+      <a class="sidebar-social-link" href="https://www.instagram.com/mestre_das_financas_1/" target="_blank" rel="noopener noreferrer" aria-label="Instagram Mestre das Finanças" title="Instagram">
+        <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"></circle></svg>
+        <span class="sidebar-label hidden text-xs">Instagram</span>
+      </a>
+      <a class="sidebar-social-link" href="mailto:mestredasfinancas2026@gmail.com" aria-label="Enviar email para Mestre das Finanças" title="Email: mestredasfinancas2026@gmail.com">
+        <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>
+        <span class="sidebar-label hidden text-xs">Email</span>
+      </a>
     </div>
   </aside>
 
