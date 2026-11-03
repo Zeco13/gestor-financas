@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Mestre das Finanças</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -100,6 +101,8 @@
     };
 
     let selectedJournalMonth = 'todos';
+    let journalSearchTerm = '';
+    let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let selectedBarMonth = 'todos';
     let selectedPieMonth = 'todos';
     let selectedPieCategory = null;
@@ -122,7 +125,7 @@
     };
 
     window.switchTab = function(tab) {
-      ['geral', 'investimentos', 'diario', 'previsibilidade', 'categorias', 'ia'].forEach(t => {
+      ['geral', 'investimentos', 'diario', 'calendario', 'previsibilidade', 'categorias', 'ia'].forEach(t => {
         const v = document.getElementById(`view-${t}`);
         if(v) v.classList.add('hidden');
         const navBtn = document.getElementById(`nav-${t}`);
@@ -565,6 +568,7 @@ window.logout = async function() {
       renderJournalFilterButtons();
       window.renderJournal();
       renderForecasts();
+      renderFinancialCalendar();
       renderCategories();
       renderInvestments();
       renderInvestmentLineChart();
@@ -771,6 +775,8 @@ window.logout = async function() {
       container.innerHTML = html;
     }
 
+    window.updateJournalSearch = function(value) { journalSearchTerm = String(value || '').trim().toLocaleLowerCase('pt-PT'); window.renderJournal(); };
+
     window.filterJournalByMonth = function(m) {
       selectedJournalMonth = m;
       renderJournalFilterButtons();
@@ -783,7 +789,10 @@ window.logout = async function() {
       if(el) {
         let filtered = Array.isArray(appState.transactions) ? appState.transactions : [];
         if (selectedJournalMonth !== 'todos') {
-          filtered = filtered.filter(t => t.date.startsWith(selectedJournalMonth));
+          filtered = filtered.filter(t => String(t.date || '').startsWith(selectedJournalMonth));
+        }
+        if (journalSearchTerm) {
+          filtered = filtered.filter(t => [t.date, (t.date ? new Date(t.date + 'T00:00:00').toLocaleDateString('pt-PT') : ''), t.description, t.category, t.subcategory, t.type].some(v => String(v || '').toLocaleLowerCase('pt-PT').includes(journalSearchTerm)));
         }
         if (filtered.length === 0) {
           el.innerHTML = `<p class="p-4 text-[11px] sm:text-xs text-brand-gray text-center">Nenhuma transação registada.</p>`;
@@ -979,6 +988,50 @@ window.logout = async function() {
       `).join('');
     }
 
+    function formatCalendarDate(date) { return date.toISOString().slice(0,10); }
+
+    window.changeCalendarMonth = function(delta) {
+      calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + delta, 1);
+      renderFinancialCalendar();
+    };
+
+    function renderFinancialCalendar() {
+      const el = document.getElementById('financialCalendar');
+      const label = document.getElementById('calendarMonthLabel');
+      if (!el || !label) return;
+      const year = calendarMonth.getFullYear(), month = calendarMonth.getMonth();
+      label.textContent = calendarMonth.toLocaleDateString('pt-PT', {month:'long', year:'numeric'});
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const days = new Date(year, month + 1, 0).getDate();
+      const today = formatCalendarDate(new Date());
+      const events = {};
+      (appState.transactions || []).filter(t => t.type === 'receita' || t.type === 'despesa').forEach(t => {
+        if (!t.date) return;
+        (events[t.date] ||= []).push({...t, isForecast:false});
+      });
+      (appState.forecasts || []).filter(f => !f.paid && (f.type === 'receita' || f.type === 'despesa')).forEach(f => {
+        if (!f.date) return;
+        (events[f.date] ||= []).push({...f, isForecast:true});
+      });
+      const weekdays = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+      let html = weekdays.map(d => `<div class="text-center text-[9px] sm:text-[10px] font-bold text-brand-gray py-2">${d}</div>`).join('');
+      for (let i=0; i<offset; i++) html += '<div class="min-h-20 sm:min-h-28 rounded-lg bg-brand-card/40 border border-brand-border/40"></div>';
+      for (let day=1; day<=days; day++) {
+        const date = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const dayEvents = (events[date] || []).sort((a,b) => Number(b.isForecast)-Number(a.isForecast));
+        html += `<div class="min-h-20 sm:min-h-28 p-1 sm:p-2 rounded-lg border ${date===today?'border-emerald-500':'border-brand-border'} bg-brand-card overflow-hidden"><div class="text-[10px] sm:text-xs font-bold ${date===today?'text-emerald-400':'text-white'} mb-1">${day}</div><div class="space-y-1">${dayEvents.map(ev => `<div title="${String(ev.description||'').replace(/"/g,'&quot;')} — ${formatEUR(Number(ev.amount)||0)}" class="rounded px-1 py-1 text-[8px] sm:text-[10px] leading-tight truncate ${ev.isForecast?'bg-blue-500/15 text-blue-300':(ev.type==='receita'?'bg-emerald-500/15 text-emerald-300':'bg-red-500/15 text-red-300')}">${ev.isForecast?'Prev. ':''}${ev.type==='receita'?'+':'−'} ${String(ev.description||'').replace(/</g,'&lt;')} <span class="hidden sm:inline">${formatEUR(Number(ev.amount)||0)}</span></div>`).join('')}</div></div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    window.resetForecastMonth = async function() {
+      if (!confirm('Queres iniciar uma nova previsibilidade? Isto irá limpar as previsões atuais. Os movimentos já registados e os dados financeiros não serão apagados.')) return;
+      appState.forecasts = [];
+      await saveData();
+      renderAll();
+    };
+
     function renderCategories() {
       const el = document.getElementById('categoriesContainer');
       if(el) {
@@ -1008,6 +1061,34 @@ window.logout = async function() {
       }
     }
 
+    window.openRedeemModal = function() {
+      const cat = appState.categories.find(c => c.name.includes('Investimento'));
+      const select = document.getElementById('redeemSubcat');
+      select.innerHTML = '';
+      (cat ? cat.subcategories : []).forEach(sub => {
+        const balance = (appState.transactions || []).filter(t => t.type === 'investimento' && t.subcategory === sub).reduce((sum,t) => sum + Number(t.amount || 0), 0);
+        select.innerHTML += `<option value="${String(sub).replace(/"/g,'&quot;')}">${sub} — disponível: ${formatEUR(balance)}</option>`;
+      });
+      document.getElementById('redeemAmount').value = '';
+      document.getElementById('redeemDate').value = new Date().toISOString().slice(0,10);
+      document.getElementById('redeemModal').classList.remove('hidden');
+    };
+    window.closeRedeemModal = function() { document.getElementById('redeemModal').classList.add('hidden'); };
+    window.executeRedeem = async function(e) {
+      e.preventDefault();
+      const subcategory = document.getElementById('redeemSubcat').value;
+      const amount = Number(document.getElementById('redeemAmount').value);
+      const date = document.getElementById('redeemDate').value;
+      const category = appState.categories.find(c => c.name.includes('Investimento'));
+      const available = (appState.transactions || []).filter(t => t.type === 'investimento' && t.subcategory === subcategory).reduce((sum,t) => sum + Number(t.amount || 0), 0);
+      if (!subcategory || !date || !Number.isFinite(amount) || amount <= 0) { alert('Indica a subcategoria, a data e um valor válido.'); return; }
+      if (amount > available + 0.00001) { alert(`O valor a resgatar excede o saldo disponível nesta subcategoria (${formatEUR(available)}).`); return; }
+      appState.transactions.push({id:'tx_redeem_'+Date.now(), type:'investimento', date, description:'Resgate para C/O - '+subcategory, category:category ? category.name : 'Investimento / Poupança', subcategory, amount:-amount, movement:'resgate'});
+      await saveData();
+      window.closeRedeemModal();
+      renderAll();
+    };
+
     function renderInvestments() {
       let invCategory = appState.categories.find(c => c.name.includes("Investimento"));
       let subcats = invCategory ? invCategory.subcategories : ["Reserva de Emergência", "Poupança Geral"];
@@ -1017,10 +1098,9 @@ window.logout = async function() {
 
       (Array.isArray(appState.transactions) ? appState.transactions : []).forEach(t => {
         if (t.type === 'investimento') {
-          totals[t.subcategory] = (totals[t.subcategory] || 0) + t.amount;
-          totalInv += t.amount;
-        } else if (t.type === 'receita' && t.description.includes("Resgate")) {
-          totalResgatado += t.amount;
+          totals[t.subcategory] = (totals[t.subcategory] || 0) + Number(t.amount || 0);
+          totalInv += Number(t.amount || 0);
+          if (Number(t.amount || 0) < 0 && (t.movement === 'resgate' || String(t.description || '').includes('Resgate'))) totalResgatado += Math.abs(Number(t.amount || 0));
         }
       });
 
@@ -1028,7 +1108,7 @@ window.logout = async function() {
       const elEm = document.getElementById('invEmergencia');
       const elMer = document.getElementById('invMercados');
       const elRes = document.getElementById('invResgatado');
-      if(elTot) elTot.innerText = formatEUR(totalInv - totalResgatado);
+      if(elTot) elTot.innerText = formatEUR(totalInv);
       if(elEm) elEm.innerText = formatEUR(totals["Reserva de Emergência"] || 0);
       if(elMer) elMer.innerText = formatEUR((totals["Ações & ETFs"] || 0) + (totals["PPR / Reforma"] || 0));
       if(elRes) elRes.innerText = formatEUR(totalResgatado);
@@ -1054,7 +1134,7 @@ window.logout = async function() {
       let cumulativeData = {};
       let runningTotal = 0;
       const sortedTxs = [...appState.transactions]
-        .filter(t => t.type === 'investimento' || (t.type === 'receita' && t.description.includes("Resgate")))
+        .filter(t => t.type === 'investimento')
         .sort((a,b) => new Date(a.date) - new Date(b.date));
 
       if (sortedTxs.length === 0) {
@@ -1063,8 +1143,7 @@ window.logout = async function() {
       }
       sortedTxs.forEach(t => {
         const m = t.date.substring(0, 7);
-        if (t.type === 'investimento') runningTotal += t.amount;
-        else if (t.type === 'receita') runningTotal -= t.amount;
+        if (t.type === 'investimento') runningTotal += Number(t.amount || 0);
         cumulativeData[m] = runningTotal;
       });
       const keys = Object.keys(cumulativeData);
@@ -1112,9 +1191,7 @@ window.logout = async function() {
 
 <header class="w-full bg-[#121826] border-b border-[#1e293b] px-4 sm:px-6 py-3 flex justify-between items-center fixed top-0 left-0 right-0 z-50">
     <div class="flex items-center space-x-2">
-      <div class="w-8 h-8 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl flex items-center justify-center font-bold text-sm">
-        €
-      </div>
+      <img src="favicon.png" alt="Mestre das Finanças" class="w-8 h-8 rounded-lg object-cover">
       <span class="text-sm font-bold text-white">Mestre das Finanças</span>
     </div>
     
@@ -1136,9 +1213,7 @@ window.logout = async function() {
   <aside id="mainSidebar" class="sidebar-collapsed bg-brand-card border-r border-brand-border flex flex-col justify-between transition-all duration-300 flex-shrink-0 min-h-screen z-40">
     <div class="p-3 sm:p-4 space-y-6">
       <div class="flex items-center gap-3">
-        <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center font-bold text-xl transition flex-shrink-0" title="Minimizar / Maximizar Menu">
-          €
-        </button>
+        <button onclick="window.toggleSidebar()" class="w-9 h-9 rounded-xl overflow-hidden bg-brand-bg border border-brand-border flex items-center justify-center transition flex-shrink-0" title="Minimizar / Maximizar Menu"><img src="favicon.png" alt="Logo" class="w-full h-full object-cover"></button>
         <span class="font-bold text-xs sm:text-sm tracking-wider uppercase text-brand-gray sidebar-label truncate hidden">Menu</span>
       </div>
 
@@ -1151,6 +1226,10 @@ window.logout = async function() {
           <button onclick="window.switchTab('diario')" id="nav-diario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
             <span class="sidebar-label text-xs sm:text-sm hidden">Transações</span>
+          </button>
+          <button onclick="window.switchTab('calendario')" id="nav-calendario" class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-gray hover:text-white hover:bg-brand-border/40 transition w-full text-left text-xs sm:text-sm">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span class="sidebar-label text-xs sm:text-sm hidden">Calendário</span>
           </button>
         </div>
 
@@ -1312,6 +1391,7 @@ window.logout = async function() {
           </button>
         </div>
 
+        <input id="journalSearch" type="search" oninput="window.updateJournalSearch(this.value)" placeholder="Pesquisar por data, nome ou categoria..." class="w-full bg-brand-card border border-brand-border rounded-xl p-3 text-xs text-white placeholder:text-brand-gray focus:outline-none focus:border-emerald-500">
         <div class="flex items-center gap-2 overflow-x-auto pb-1" id="journalMonthButtons"></div>
 
         <div class="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
@@ -1323,6 +1403,20 @@ window.logout = async function() {
         </div>
       </div>
 
+      <!-- TAB CALENDÁRIO -->
+      <div id="view-calendario" class="tab-content space-y-4 hidden">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div><h2 class="text-lg sm:text-xl font-bold text-cyan-400">Calendário Financeiro</h2><p class="text-[10px] sm:text-xs text-brand-gray mt-1">Despesas e receitas registadas e previstas, organizadas por data</p></div>
+          <div class="flex items-center gap-2">
+            <button onclick="window.changeCalendarMonth(-1)" class="px-3 py-2 rounded-lg bg-brand-card border border-brand-border text-white">‹</button>
+            <span id="calendarMonthLabel" class="text-xs sm:text-sm font-bold text-white min-w-28 text-center"></span>
+            <button onclick="window.changeCalendarMonth(1)" class="px-3 py-2 rounded-lg bg-brand-card border border-brand-border text-white">›</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3 text-[10px] text-brand-gray"><span class="text-emerald-400">● Receitas</span><span class="text-red-400">● Despesas</span><span class="text-blue-400">● Previsões</span></div>
+        <div id="financialCalendar" class="grid grid-cols-7 gap-1 sm:gap-2"></div>
+      </div>
+
       <!-- TAB 4: PREVISIBILIDADE -->
       <div id="view-previsibilidade" class="tab-content space-y-4 sm:space-y-6 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-blue-500/10 via-brand-card to-brand-card p-4 sm:p-5 rounded-2xl border border-blue-500/20">
@@ -1330,9 +1424,10 @@ window.logout = async function() {
             <h2 class="text-lg sm:text-xl font-bold text-blue-400">Previsibilidade Financeira</h2>
             <p class="text-[10px] sm:text-xs text-brand-gray mt-1">Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas</p>
           </div>
-          <button onclick="window.openForecastModal()" class="bg-blue-500 hover:bg-blue-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">
-            + Nova Previsão
-          </button>
+          <div class="flex gap-2 w-full sm:w-auto">
+            <button onclick="window.resetForecastMonth()" class="bg-brand-bg border border-brand-border hover:border-rose-500/50 text-brand-gray hover:text-rose-400 font-bold text-xs px-3 py-2.5 rounded-xl transition">Novo mês / Reset</button>
+            <button onclick="window.openForecastModal()" class="bg-blue-500 hover:bg-blue-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition">+ Nova Previsão</button>
+          </div>
         </div>
 
         <div class="bg-brand-card p-4 sm:p-5 rounded-2xl border border-brand-border space-y-4">
@@ -1449,8 +1544,12 @@ window.logout = async function() {
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
       <div class="flex justify-between items-center"><h3 class="font-bold text-amber-400 text-sm sm:text-base">Transferir para C/O</h3><button onclick="window.closeRedeemModal()" class="text-brand-gray">✕</button></div>
       <form onsubmit="window.executeRedeem(event)" class="space-y-3">
-        <select id="redeemSubcat" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
-        <input type="number" step="0.01" id="redeemAmount" required placeholder="Valor a resgatar (€)" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        <label class="block text-[11px] text-brand-gray">Subcategoria de origem</label>
+        <select id="redeemSubcat" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white"></select>
+        <label class="block text-[11px] text-brand-gray">Data do resgate</label>
+        <input type="date" id="redeemDate" required class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
+        <label class="block text-[11px] text-brand-gray">Valor a resgatar (€)</label>
+        <input type="number" min="0.01" step="0.01" id="redeemAmount" required placeholder="Valor a resgatar (€)" class="w-full bg-brand-bg border border-brand-border rounded-xl p-2.5 text-xs text-white">
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="window.closeRedeemModal()" class="px-3 py-2 bg-brand-border text-xs text-brand-gray rounded-xl">Cancelar</button>
           <button type="submit" class="px-3 py-2 bg-amber-400 text-slate-950 font-bold text-xs rounded-xl">Confirmar</button>

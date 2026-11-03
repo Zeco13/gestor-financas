@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mestre das Finanças - Acesso</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -58,6 +59,14 @@
         <button type="submit" id="btnSubmitLogin" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl text-xs transition shadow-lg shadow-emerald-500/20">
           Entrar na Plataforma
         </button>
+        <div class="text-right"><button type="button" onclick="sendPasswordRecovery()" class="text-[11px] text-emerald-400 hover:text-emerald-300 underline">Recuperar Password</button></div>
+      </form>
+
+      <form id="formPasswordUpdate" onsubmit="updateRecoveredPassword(event)" class="space-y-4 hidden">
+        <p class="text-sm font-bold text-white">Definir nova palavra-passe</p>
+        <input type="password" id="newPassword" required minlength="6" placeholder="Nova palavra-passe" class="w-full bg-brand-bg border border-brand-border rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500">
+        <input type="password" id="confirmNewPassword" required minlength="6" placeholder="Confirmar nova palavra-passe" class="w-full bg-brand-bg border border-brand-border rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500">
+        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl text-xs">Guardar nova palavra-passe</button>
       </form>
 
       <!-- FORMULÁRIO 2: REGISTO + PAGAMENTO (NOVOS CLIENTES EM 2 PASSOS) -->
@@ -202,6 +211,41 @@
         btn.innerText = "Entrar na Plataforma";
       }
     }
+
+    async function sendPasswordRecovery() {
+      const email = document.getElementById('loginEmail').value.trim();
+      if (!email) { showAlert('Introduz primeiro o teu email para receberes o link de recuperação.'); document.getElementById('loginEmail').focus(); return; }
+      const redirectTo = `${window.location.origin}${window.location.pathname}?recovery=1`;
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) showAlert('Não foi possível enviar o email: ' + error.message);
+      else showAlert('Enviámos um link de recuperação para o teu email. Verifica também a pasta de spam.', true);
+    }
+
+    async function updateRecoveredPassword(e) {
+      e.preventDefault();
+      const password = document.getElementById('newPassword').value;
+      const confirmation = document.getElementById('confirmNewPassword').value;
+      if (password !== confirmation) { showAlert('As palavras-passe não coincidem.'); return; }
+      const { error } = await supabaseClient.auth.updateUser({ password });
+      if (error) { showAlert('Não foi possível atualizar a palavra-passe: ' + error.message); return; }
+      showAlert('Palavra-passe atualizada com sucesso. Já podes iniciar sessão.', true);
+      document.getElementById('formPasswordUpdate').classList.add('hidden');
+      document.getElementById('formLogin').classList.remove('hidden');
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmNewPassword').value = '';
+      await supabaseClient.auth.signOut();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('recovery') === '1' || window.location.hash.includes('type=recovery')) {
+        document.getElementById('formLogin').classList.add('hidden');
+        document.getElementById('sectionPlan').classList.add('hidden');
+        document.getElementById('formPasswordUpdate').classList.remove('hidden');
+        document.getElementById('alertBox').classList.remove('hidden');
+        document.getElementById('alertBox').innerText = 'Define uma nova palavra-passe para a tua conta.';
+      }
+    });
 
     // AÇÕES DO REGISTO + ENVIAR PARA STRIPE (2 PASSOS)
     async function handleSignupAndCheckout(e) {
