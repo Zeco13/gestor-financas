@@ -330,37 +330,97 @@
         }
       });
     }
+    async function recognizeDocumentCanvas(canvas, statusCallback) {
+      const worker = await getTesseractWorker(statusCallback);
+      try {
+        const full = await worker.recognize(canvas);
+        // A entidade costuma estar no cabeçalho, sobretudo no canto superior esquerdo.
+        // O recorte dedicado aumenta a resolução dessa zona e evita confundir texto do corpo.
+        const crop = document.createElement('canvas');
+        const cropWidth = Math.max(1, Math.floor(canvas.width * 0.48));
+        const cropHeight = Math.max(1, Math.floor(canvas.height * 0.34));
+        const scale = Math.max(1, Math.min(2, 1800 / cropWidth));
+        crop.width = Math.round(cropWidth * scale);
+        crop.height = Math.round(cropHeight * scale);
+        const cropContext = crop.getContext('2d');
+        cropContext.filter = 'grayscale(1) contrast(1.35)';
+        cropContext.drawImage(canvas, 0, 0, cropWidth, cropHeight, 0, 0, crop.width, crop.height);
+        cropContext.filter = 'none';
+        const header = await worker.recognize(crop);
+        // Segunda leitura, mais focada no espaço normalmente ocupado pelo logótipo.
+        // O modo de segmentação de linha/bloco ajuda em marcas estilizadas como o logótipo EDP.
+        const logoCrop = document.createElement('canvas');
+        // Recorte adicional do centro do primeiro símbolo/logótipo do cabeçalho.
+        // Em faturas como a EDP, o nome está dentro do emblema e não é lido no OCR da página inteira.
+        const logoX = Math.floor(canvas.width * 0.123);
+        const logoY = Math.floor(canvas.height * 0.172);
+        const logoWidth = Math.max(1, Math.floor(canvas.width * 0.086));
+        const logoHeight = Math.max(1, Math.floor(canvas.height * 0.095));
+        const logoScale = Math.max(6, Math.min(10, 1800 / logoWidth));
+        logoCrop.width = Math.round(logoWidth * logoScale);
+        logoCrop.height = Math.round(logoHeight * logoScale);
+        const logoContext = logoCrop.getContext('2d');
+        logoContext.filter = 'grayscale(1) contrast(1.8)';
+        logoContext.drawImage(canvas, logoX, logoY, logoWidth, logoHeight, 0, 0, logoCrop.width, logoCrop.height);
+        logoContext.filter = 'none';
+        let logoText = '';
+        try {
+          await worker.setParameters({ tessedit_pageseg_mode: '6' });
+          const logo = await worker.recognize(logoCrop);
+          logoText = logo.data.text || '';
+          await worker.setParameters({ tessedit_pageseg_mode: '3' });
+        } catch (logoError) {
+          console.warn('Leitura específica do logótipo não concluída:', logoError);
+        }
+        return { text: full.data.text || '', topLeftText: [header.data.text || '', logoText].filter(Boolean).join('\n') };
+      } finally {
+        await worker.terminate();
+      }
+    }
     async function extractTextFromPdf(file, statusCallback) {
       await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
       const pagesToRead = Math.min(pdf.numPages, 4);
       let extracted = '';
-      const pageCanvases = [];
+      let topLeftText = '';
       for (let pageNo = 1; pageNo <= pagesToRead; pageNo++) {
         statusCallback(`A ler página ${pageNo} de ${pagesToRead}...`);
         const page = await pdf.getPage(pageNo);
         const textContent = await page.getTextContent();
-        const pageText = (textContent.items || []).map(item => (item.str || '') + (item.hasEOL ? '\\n' : ' ')).join('');
-        extracted += pageText + '\\n';
-        if (pageNo === 1 || pageText.trim().length < 20) {
-          const viewport = page.getViewport({ scale: pageNo === 1 ? 2.0 : 1.6 });
+        // Usar quebras de linha reais: sem elas os campos deixam de ser separados.
+        const pageItems = textContent.items || [];
+        const pageText = pageItems.map(item => (item.str || '') + (item.hasEOL ? '\n' : ' ')).join('');
+        extracted += pageText + '\n';
+        if (pageNo === 1) {
+          // Complementar o OCR com texto PDF selecionável localizado no cabeçalho superior esquerdo.
+          const pageView = page.view || [0, 0, page.getViewport({ scale: 1 }).width, page.getViewport({ scale: 1 }).height];
+          const pageWidth = pageView[2] - pageView[0];
+          const pageHeight = pageView[3] - pageView[1];
+          const positionedHeader = pageItems.filter(item => {
+            const x = item.transform && item.transform[4];
+            const y = item.transform && item.transform[5];
+            return Number.isFinite(x) && Number.isFinite(y) && x <= pageView[0] + pageWidth * 0.48 && y >= pageView[1] + pageHeight * 0.66;
+          }).map(item => item.str || '').filter(Boolean).join(' ');
+          if (positionedHeader) topLeftText = positionedHeader;
+          const viewport = page.getViewport({ scale: 2.5 });
           const canvas = document.createElement('canvas');
           canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
           await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-          pageCanvases.push(canvas);
+          const ocr = await recognizeDocumentCanvas(canvas, statusCallback);
+          extracted += '\n' + ocr.text;
+          topLeftText = ocr.topLeftText;
+        } else if (pageText.trim().length < 20) {
+          const viewport = page.getViewport({ scale: 1.8 });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+          const worker = await getTesseractWorker(statusCallback);
+          try { const result = await worker.recognize(canvas); extracted += '\n' + (result.data.text || ''); }
+          finally { await worker.terminate(); }
         }
       }
-      if (extracted.replace(/\s/g,'').length < 35 || pageCanvases.length) {
-        const worker = await getTesseractWorker(statusCallback);
-        try {
-          for (const canvas of pageCanvases) {
-            const result = await worker.recognize(canvas);
-            extracted += '\\n' + (result.data.text || '');
-          }
-        } finally { await worker.terminate(); }
-      }
-      return extracted;
+      return { text: extracted, topLeftText };
     }
     function normalizeDocumentText(value) {
       return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -390,42 +450,91 @@
       return '';
     }
     function parseDocumentDate(text) {
-      const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-      const paymentLabel = /(debito na minha conta a partir|data\s*(?:de\s*)?(?:pagamento|debito)|data limite(?: de pagamento)?|vencimento|pagar ate|payment date|due date|direct debit)/i;
-      for (let i = 0; i < lines.length; i++) {
-        if (paymentLabel.test(normalizeDocumentText(lines[i]))) {
-          const date = parseDocumentDateToken(lines.slice(i, i + 3).join(' '));
-          if (date) return date;
-        }
+      const source = normalizeDocumentText(text).replace(/[ \t]+/g, ' ');
+      // Só aceitar datas explicitamente associadas ao pagamento ou ao débito.
+      // A data de emissão, faturação ou um vencimento sem rótulo claro nunca é fallback.
+      const labels = [
+        /debito\s+(?:na\s+minha\s+conta\s+)?(?:a\s+partir\s+de|em)\s*[:\-]?/g,
+        /data\s*(?:de\s*)?(?:limite\s*(?:(?:de|para)\s*)?pagamento|pagamento)\s*[:\-]?/g,
+        /data\s*(?:(?:de|do)\s*)?debito\s*[:\-]?/g,
+        /limite\s*(?:(?:de|para)\s*)?pagamento\s*[:\-]?/g,
+        /payment\s+date\s*[:\-]?|due\s+date\s*[:\-]?|direct\s+debit\s+(?:date|on)\s*[:\-]?/g
+      ];
+      const hits = [];
+      for (const re of labels) {
+        let m;
+        while ((m = re.exec(source)) !== null) hits.push({ index: m.index, end: re.lastIndex });
+      }
+      hits.sort((a,b) => a.index - b.index);
+      for (const hit of hits) {
+        const following = source.slice(hit.end, hit.end + 100);
+        const date = parseDocumentDateToken(following);
+        if (date) return date;
       }
       return '';
     }
     function parseDocumentAmount(text) {
-      const lines = String(text || '').split(/\r?\n/).map(x => x.replace(/\s+/g,' ').trim()).filter(Boolean);
-      const label = /(quanto\s+tenho\s+a\s+pagar|total\s+a\s+pagar|valor\s+a\s+pagar|montante\s+a\s+pagar|total\s+devido|total\s+a\s+liquidar|amount\s+due|total\s+due|grand\s+total)/i;
-      const amountPattern = /(?:€\s*|EUR\s*)?(\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))(?:\s*€|\s*EUR)?/i;
-      for (let i = 0; i < lines.length; i++) {
-        if (label.test(normalizeDocumentText(lines[i]))) {
-          const match = lines.slice(i, i + 3).join(' ').match(amountPattern);
-          if (match) {
-            let raw = match[1].replace(/\s/g,'');
-            if (raw.includes(',') && raw.includes('.')) raw = raw.replace(/\./g,'').replace(',','.');
-            else if (raw.includes(',')) raw = raw.replace(',','.');
-            const amount = Number(raw);
-            if (Number.isFinite(amount) && amount > 0) return amount;
-          }
+      const source = normalizeDocumentText(text).replace(/[ \t]+/g, ' ');
+      const labels = [
+        /quanto\s+tenho\s+a\s+pagar/g,
+        /total\s+(?:final\s+)?a\s+pagar/g,
+        /valor\s+(?:total\s+)?a\s+pagar/g,
+        /montante\s+(?:total\s+)?a\s+pagar/g,
+        /total\s+pago/g,
+        /valor\s+total\s+pago/g,
+        /total\s+devido/g,
+        /total\s+a\s+liquidar/g,
+        /amount\s+due/g,
+        /total\s+due/g,
+        /grand\s+total/g
+      ];
+      const amountPattern = /(?:€\s*|eur\s*)?(\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))(?:\s*€|\s*eur)?/i;
+      const candidates = [];
+      for (let priority = 0; priority < labels.length; priority++) {
+        const re = labels[priority];
+        let m;
+        while ((m = re.exec(source)) !== null) {
+          const after = source.slice(re.lastIndex, re.lastIndex + 140);
+          const before = source.slice(Math.max(0, m.index - 45), m.index);
+          const afterMatch = after.match(amountPattern);
+          const beforeMatch = before.match(new RegExp(amountPattern.source + '\\s*$', 'i'));
+          const match = afterMatch || beforeMatch;
+          if (!match) continue;
+          let raw = match[1].replace(/\s/g, '');
+          if (raw.includes(',') && raw.includes('.')) raw = raw.replace(/\./g, '').replace(',', '.');
+          else if (raw.includes(',')) raw = raw.replace(',', '.');
+          const amount = Number(raw);
+          if (Number.isFinite(amount) && amount > 0) candidates.push({ priority, index: m.index, amount });
         }
       }
-      return null;
+      candidates.sort((a,b) => a.priority - b.priority || a.index - b.index);
+      return candidates.length ? candidates[0].amount : null;
     }
-    function parseDocumentEntity(text) {
-      const source = String(text || '');
-      if (/\bE[\s._-]*D[\s._-]*P\b/i.test(source) || /\bEDP\b/i.test(source)) return 'EDP';
+    function parseDocumentEntity(topLeftText) {
+      const source = String(topLeftText || '');
+      const normalized = normalizeDocumentText(source);
+      // Correspondência conhecida só no cabeçalho, nunca no corpo da fatura.
+      const known = [
+        [/\bedp\b|e\s*d\s*p/i, 'EDP'],
+        [/\bgalp\b/i, 'Galp'],
+        [/\bendesa\b/i, 'Endesa'],
+        [/\biberdrola\b/i, 'Iberdrola'],
+        [/\bmeo\b/i, 'MEO'],
+        [/\bnos\b/i, 'NOS'],
+        [/\bvodafone\b/i, 'Vodafone'],
+        [/\bcontinente\b/i, 'Continente'],
+        [/\bpingo\s*doce\b/i, 'Pingo Doce'],
+        [/\blidl\b/i, 'Lidl'],
+        [/\bauchan\b/i, 'Auchan'],
+        [/\baguas\s+de\s+portugal\b/i, 'Águas de Portugal']
+      ];
+      for (const [pattern, name] of known) if (pattern.test(normalized)) return name;
       const lines = source.split(/\r?\n/).map(x => x.replace(/\s+/g,' ').trim()).filter(Boolean);
-      const labelled = source.match(/(?:fornecedor|entidade|emitente|merchant|supplier|seller)\s*[:\-]\s*([^\r\n]{3,80})/i);
-      if (labelled) return labelled[1].trim().replace(/\s{2,}/g,' ').slice(0,80);
-      const excluded = /(fatura|factura|recibo|invoice|receipt|comprovativo|documento|nif|vat|contribuinte|telefone|telem[oó]vel|email|www\.|http|data|total|cliente|morada|rua|avenida|c[oó]digo|p[aá]gina)/i;
-      return lines.slice(0,18).find(line => /[A-Za-zÀ-ÿ]{3}/.test(line) && line.length >= 3 && line.length <= 80 && !excluded.test(line) && !/^\d/.test(line)) || '';
+      const excluded = /(fatura|factura|recibo|invoice|receipt|comprovativo|documento|nif|vat|contribuinte|telefone|telem[oó]vel|email|www\.|http|data|total|cliente|morada|rua|avenida|codigo|pagina|periodo|consumo)/i;
+      for (const line of lines.slice(0, 12)) {
+        if (line.length >= 2 && line.length <= 65 && /[A-Za-zÀ-ÿ]{3}/.test(line) && !excluded.test(normalizeDocumentText(line)) && !/^\d/.test(line)) return line;
+      }
+      return '';
     }
     window.processExpenseDocument = async function(file) {
       if (!file) return;
@@ -437,14 +546,22 @@
       try {
         setDocumentImportStatus('A preparar o documento...');
         let text = '';
+        let topLeftText = '';
         if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-          text = await extractTextFromPdf(file, setDocumentImportStatus);
+          const result = await extractTextFromPdf(file, setDocumentImportStatus);
+          text = result.text;
+          topLeftText = result.topLeftText;
         } else {
-          const worker = await getTesseractWorker(setDocumentImportStatus);
-          try { const result = await worker.recognize(file); text = result.data.text || ''; }
-          finally { await worker.terminate(); }
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width; canvas.height = bitmap.height;
+          canvas.getContext('2d').drawImage(bitmap, 0, 0);
+          bitmap.close && bitmap.close();
+          const result = await recognizeDocumentCanvas(canvas, setDocumentImportStatus);
+          text = result.text;
+          topLeftText = result.topLeftText;
         }
-        const extracted = { date: parseDocumentDate(text), amount: parseDocumentAmount(text), entity: parseDocumentEntity(text) };
+        const extracted = { date: parseDocumentDate(text), amount: parseDocumentAmount(text), entity: parseDocumentEntity(topLeftText) };
         const now = new Date();
         const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         const futurePayment = Boolean(extracted.date && extracted.date > today);
@@ -467,7 +584,7 @@
           window.openAddTransactionModal();
           document.getElementById('txType').value = 'despesa';
           window.onTxTypeChange();
-          document.getElementById('txDate').value = extracted.date || today;
+          document.getElementById('txDate').value = extracted.date || '';
           document.getElementById('txDesc').value = extracted.entity || '';
           document.getElementById('txAmount').value = extracted.amount !== null ? extracted.amount.toFixed(2) : '';
           document.getElementById('txModalTitle').textContent = 'Confirmar despesa importada';
