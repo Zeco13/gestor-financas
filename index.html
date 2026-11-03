@@ -139,6 +139,8 @@
       forecasts: [],
       userPreferences: { displayName: '', currency: 'EUR', language: 'pt', theme: 'dark' }
     };
+    // Snapshot imutável das definições iniciais para o comando "Apagar Dados".
+    const defaultAppState = JSON.parse(JSON.stringify(appState));
 
     let selectedJournalMonth = 'todos';
     let journalSearchTerm = '';
@@ -189,6 +191,8 @@
 
     window.openAddTransactionModal = function() {
       document.getElementById('txModalTitle').innerText = "Nova Transação";
+      const importNotice = document.getElementById('documentImportNotice');
+      if (importNotice) importNotice.classList.add('hidden');
       document.getElementById('txId').value = "";
       document.getElementById('txForm').reset();
       document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
@@ -264,7 +268,171 @@
       }
       await saveData();
       window.closeTxModal();
+      const importNotice = document.getElementById('documentImportNotice');
+      if (importNotice) importNotice.classList.add('hidden');
       renderAll();
+    };
+
+    window.openDocumentImportModal = function() {
+      const modal = document.getElementById('documentImportModal');
+      const status = document.getElementById('documentImportStatus');
+      const fileInput = document.getElementById('expenseDocumentFile');
+      if (fileInput) fileInput.value = '';
+      if (status) { status.classList.add('hidden'); status.textContent = ''; }
+      if (modal) modal.classList.remove('hidden');
+    };
+    window.closeDocumentImportModal = function() {
+      const modal = document.getElementById('documentImportModal');
+      if (modal) modal.classList.add('hidden');
+    };
+    function setDocumentImportStatus(message, show = true) {
+      const el = document.getElementById('documentImportStatus');
+      if (!el) return;
+      const lang = getPrefs().language || 'pt';
+      const dict = uiTranslations[lang] || {};
+      let displayMessage = dict[message] || message;
+      const progressMatch = String(message).match(/^A ler página (\d+) de (\d+)\.\.\.$/);
+      const ocrMatch = String(message).match(/^A reconhecer texto: (\d+)%$/);
+      const preparingMatch = String(message).match(/^A preparar leitura: (.+)$/);
+      if (lang === 'en' && progressMatch) displayMessage = `Reading page ${progressMatch[1]} of ${progressMatch[2]}...`;
+      if (lang === 'fr' && progressMatch) displayMessage = `Lecture de la page ${progressMatch[1]} sur ${progressMatch[2]}...`;
+      if (lang === 'de' && progressMatch) displayMessage = `Seite ${progressMatch[1]} von ${progressMatch[2]} wird gelesen...`;
+      if (lang === 'en' && ocrMatch) displayMessage = `Recognizing text: ${ocrMatch[1]}%`;
+      if (lang === 'fr' && ocrMatch) displayMessage = `Reconnaissance du texte : ${ocrMatch[1]} %`;
+      if (lang === 'de' && ocrMatch) displayMessage = `Texterkennung: ${ocrMatch[1]} %`;
+      if (preparingMatch) displayMessage = (dict['A preparar leitura:'] || (lang === 'en' ? 'Preparing OCR: ' : lang === 'fr' ? 'Préparation OCR : ' : lang === 'de' ? 'OCR wird vorbereitet: ' : 'A preparar leitura: ')) + preparingMatch[1];
+      el.textContent = displayMessage;
+      el.classList.toggle('hidden', !show);
+    }
+    function loadExternalScript(src, id) {
+      return new Promise((resolve, reject) => {
+        if (window[id]) return resolve();
+        const existing = document.querySelector(`script[data-loader="${id}"]`);
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = src; script.async = true; script.dataset.loader = id;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Não foi possível carregar o componente de leitura do documento.'));
+        document.head.appendChild(script);
+      });
+    }
+    async function getTesseractWorker(statusCallback) {
+      await loadExternalScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', 'Tesseract');
+      return await window.Tesseract.createWorker('por+eng', 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') statusCallback(`A reconhecer texto: ${Math.round((m.progress || 0) * 100)}%`);
+          else if (m.status) statusCallback('A preparar leitura: ' + m.status);
+        }
+      });
+    }
+    async function extractTextFromPdf(file, statusCallback) {
+      await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const pagesToRead = Math.min(pdf.numPages, 4);
+      let extracted = '';
+      const pageCanvases = [];
+      for (let pageNo = 1; pageNo <= pagesToRead; pageNo++) {
+        statusCallback(`A ler página ${pageNo} de ${pagesToRead}...`);
+        const page = await pdf.getPage(pageNo);
+        const textContent = await page.getTextContent();
+        const pageText = (textContent.items || []).map(item => (item.str || '') + (item.hasEOL ? '\\n' : ' ')).join('');
+        extracted += pageText + '\\n';
+        if (pageText.trim().length < 20) {
+          const viewport = page.getViewport({ scale: 1.6 });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+          pageCanvases.push(canvas);
+        }
+      }
+      if (extracted.replace(/\s/g,'').length < 35 || pageCanvases.length) {
+        const worker = await getTesseractWorker(statusCallback);
+        try {
+          for (const canvas of pageCanvases) {
+            const result = await worker.recognize(canvas);
+            extracted += '\\n' + (result.data.text || '');
+          }
+        } finally { await worker.terminate(); }
+      }
+      return extracted;
+    }
+    function parseDocumentDate(text) {
+      const iso = text.match(/\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/);
+      if (iso) return `${iso[1]}-${String(iso[2]).padStart(2,'0')}-${String(iso[3]).padStart(2,'0')}`;
+      const pt = text.match(/\b(0?[1-9]|[12]\d|3[01])[/. -](0?[1-9]|1[0-2])[/. -](20\d{2}|\d{2})\b/);
+      if (pt) {
+        const year = pt[3].length === 2 ? `20${pt[3]}` : pt[3];
+        return `${year}-${String(pt[2]).padStart(2,'0')}-${String(pt[1]).padStart(2,'0')}`;
+      }
+      return '';
+    }
+    function parseDocumentAmount(text) {
+      const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+      const preferred = lines.filter(line => /\b(total\s*a\s*pagar|total|valor\s*total|amount\s*due|grand\s*total|total\s*due)\b/i.test(line));
+      const candidates = [];
+      for (const line of [...preferred, ...lines]) {
+        const matches = [...line.matchAll(/(?:€\s*|EUR\s*)?(\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))(?:\s*€|\s*EUR)?/gi)];
+        for (const match of matches) {
+          let raw = match[1].replace(/\s/g,'');
+          if (raw.includes(',') && raw.includes('.')) raw = raw.replace(/\./g,'').replace(',','.');
+          else if (raw.includes(',')) raw = raw.replace(',','.');
+          else if ((raw.match(/\./g) || []).length > 1) raw = raw.replace(/\.(?=.*\.)/g,'');
+          const value = Number(raw);
+          if (Number.isFinite(value) && value > 0 && value < 100000000) candidates.push({ value, preferred: preferred.includes(line) });
+        }
+        if (candidates.some(c => c.preferred)) break;
+      }
+      return candidates.length ? candidates[0].value : null;
+    }
+    function parseDocumentEntity(text) {
+      const lines = text.split(/\r?\n/).map(x => x.replace(/\s+/g,' ').trim()).filter(Boolean);
+      const labelled = text.match(/(?:fornecedor|entidade|emitente|merchant|supplier|seller)\s*[:\-]\s*([^\r\n]{3,80})/i);
+      if (labelled) return labelled[1].trim().replace(/\s{2,}/g,' ').slice(0,80);
+      const excluded = /(fatura|factura|recibo|invoice|receipt|comprovativo|documento|nif|vat|contribuinte|telefone|telem[oó]vel|email|www\.|http|data|total|cliente|morada|rua|avenida|c[oó]digo|p[aá]gina)/i;
+      return lines.slice(0,14).find(line => /[A-Za-zÀ-ÿ]{3}/.test(line) && line.length >= 3 && line.length <= 80 && !excluded.test(line) && !/^\d/.test(line)) || '';
+    }
+    window.processExpenseDocument = async function(file) {
+      if (!file) return;
+      const allowed = ['application/pdf','image/jpeg','image/png','image/webp'];
+      if (!allowed.includes(file.type) && !/\.(pdf|jpe?g|png|webp)$/i.test(file.name)) {
+        setDocumentImportStatus('Formato não suportado. Seleciona um PDF, JPG, PNG ou WEBP.'); return;
+      }
+      if (file.size > 12 * 1024 * 1024) { setDocumentImportStatus('O ficheiro ultrapassa o limite de 12 MB.'); return; }
+      try {
+        setDocumentImportStatus('A preparar o documento...');
+        let text = '';
+        if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+          text = await extractTextFromPdf(file, setDocumentImportStatus);
+        } else {
+          const worker = await getTesseractWorker(setDocumentImportStatus);
+          try { const result = await worker.recognize(file); text = result.data.text || ''; }
+          finally { await worker.terminate(); }
+        }
+        const extracted = { date: parseDocumentDate(text), amount: parseDocumentAmount(text), entity: parseDocumentEntity(text) };
+        window.closeDocumentImportModal();
+        window.openAddTransactionModal();
+        document.getElementById('txType').value = 'despesa';
+        window.onTxTypeChange();
+        document.getElementById('txDate').value = extracted.date;
+        document.getElementById('txDesc').value = extracted.entity || '';
+        document.getElementById('txAmount').value = extracted.amount !== null ? extracted.amount.toFixed(2) : '';
+        document.getElementById('txModalTitle').textContent = 'Confirmar despesa importada'; applyLanguage();
+        const notice = document.getElementById('documentImportNotice');
+        if (notice) {
+          const lang = getPrefs().language || 'pt';
+          const tr = key => (uiTranslations[lang] && uiTranslations[lang][key]) || key;
+          notice.textContent = `${tr('Leitura concluída.')} ${tr('Data:')} ${extracted.date} · ${tr('Valor:')} ${extracted.amount !== null ? formatEUR(extracted.amount) : tr('não detetado')} · ${tr('Entidade:')} ${extracted.entity || tr('não detetada')}. ${tr('Confirma e edita os campos antes de guardar.')}`;
+          notice.classList.remove('hidden');
+        }
+      } catch (err) {
+        console.error('Erro ao ler documento:', err);
+        setDocumentImportStatus('Não foi possível ler este documento. Tenta uma imagem mais nítida ou introduz os dados manualmente.');
+      }
     };
 
     window.deleteTransaction = async function(id) {
@@ -552,7 +720,7 @@
     const preferenceDefaults = { displayName:'', currency:'EUR', language:'pt', theme:'dark' };
     const languageNames = { pt:'Português', en:'English', fr:'Français', de:'Deutsch' };
     const languageFlags = { pt:'🇵🇹', en:'🇬🇧', fr:'🇫🇷', de:'🇩🇪' };
-    const uiTranslations = {"en":{"Perfil":"Profile","Editar Perfil":"Edit profile","Mudar Password":"Change password","Configurações":"Settings","Botão de Sair":"Log out","Sair":"Log out","Menu":"Menu","Visão Geral":"Overview","Transações":"Transactions","Calendário":"Calendar","Previsibilidade":"Forecast","Investimentos":"Investments","Categorias":"Categories","Relatórios & IA":"Reports & AI","Conta à Ordem":"Current account","Receitas (Mês)":"Income (month)","Despesas (Mês)":"Expenses (month)","Investimento & Poupança":"Investments & savings","Evolução Financeira":"Financial evolution","Acompanhamento e comparação de rendimentos e gastos":"Track and compare income and expenses","Receitas":"Income","Despesas":"Expenses","Gastos por Categoria":"Spending by category","Atividades Recentes (Últimos 15)":"Recent activity (last 15)","Investimentos & Poupança":"Investments & savings","Gestão de reservas e transferências para a Conta à Ordem":"Manage savings and transfers to the current account","Resgatar para C/O":"Withdraw to current account","Total Investido":"Total invested","Reserva Emergência":"Emergency fund","Ações, ETFs & PPR":"Stocks, ETFs & pension plans","Resgatado (C/O)":"Withdrawn (current account)","Evolução do Património Investido":"Invested assets over time","Distribuição do Portfólio":"Portfolio allocation","+ Nova Entrada":"+ New entry","Histórico de Lançamentos":"Transaction history","registos":"records","Calendário Financeiro":"Financial calendar","Despesas e receitas registadas e previstas, organizadas por data":"Recorded and forecast expenses and income, organised by date","● Receitas":"● Income","● Despesas":"● Expenses","● Previsões":"● Forecasts","Previsibilidade Financeira":"Financial forecast","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Forward planning, income calculations and direct allocation management","Novo mês / Reset":"New month / Reset","+ Nova Previsão":"+ New forecast","Análise Preditiva & Regras de Distribuição":"Predictive analysis & allocation rules","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Monthly forecasts (click the check mark to confirm and move to Overview)","+ Nova Categoria":"+ New category","Diagnóstico & Insights de IA":"AI diagnosis & insights","Avaliação inteligente com base em literacia financeira validada.":"Smart assessment based on validated financial literacy.","Gerar Relatório de IA":"Generate AI report","Análise da Saúde Financeira":"Financial health analysis","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Click “Generate AI report” to get a detailed assessment based on your current data.","Recomendações Financeiras (Literacia Validada)":"Financial recommendations (validated literacy)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• No recommendations generated. Click the button above to start the analysis.","Nova Transação":"New transaction","Despesa":"Expense","Receita":"Income","Investimento / Poupança":"Investment / Savings","Cancelar":"Cancel","Guardar":"Save","Nova Previsão":"New forecast","Despesa Prevista":"Forecast expense","Receita Prevista":"Forecast income","Guardar Previsão":"Save forecast","Transferir para C/O":"Transfer to current account","Subcategoria de origem":"Source subcategory","Data do resgate":"Withdrawal date","Valor a resgatar (€)":"Amount to withdraw (€)","Confirmar":"Confirm","Cor da Categoria":"Category colour","Escolher Ícone Profissional (15 Ícones)":"Choose professional icon (15 icons)","Entradas do dia":"Day entries","Fechar":"Close","Introduza o nome que pretende apresentar na plataforma.":"Enter the name you want displayed on the platform.","Nome":"Name","O seu nome":"Your name","A palavra-passe será alterada através de um link enviado para o seu email.":"Your password will be changed using a link sent to your email.","Enviar email de recuperação":"Send recovery email","Moeda":"Currency","Idioma":"Language","Tema":"Theme","Dark Mode":"Dark mode","Light Mode":"Light mode","Euro":"Euro","Dólar Americano":"US Dollar","Real Brasileiro":"Brazilian Real","Português":"Portuguese","Inglês":"English","Francês":"French","Alemão":"German","Guardar configurações":"Save settings","As alterações foram guardadas.":"Your changes have been saved.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"The currency changes how values are displayed; saved amounts are not automatically converted.","Adicionar":"Add","Editar":"Edit","Eliminar":"Delete","Pesquisar":"Search","Pesquisar movimentos":"Search transactions","Data":"Date","Categoria":"Category","Subcategoria":"Subcategory","Descrição":"Description","Valor":"Amount","Tipo":"Type","Estado":"Status","Previsão":"Forecast","Prevista":"Forecast","Registada":"Recorded","Sem descrição":"No description","Ver todas":"View all","restantes":"remaining","Voltar a todas as entradas deste dia":"Back to all entries for this day","Sem movimentos":"No transactions","Sem dados":"No data","Total":"Total","Mês":"Month","Ano":"Year","Anterior":"Previous","Seguinte":"Next","Hoje":"Today","Guardar alterações":"Save changes","A carregar...":"Loading...","Todos":"All","Todos os Períodos":"All periods","Sem histórico de investimentos.":"No investment history.","Pesquisar por data, nome ou categoria...":"Search by date, name or category...","Nenhuma transação registada.":"No transactions recorded.","Descrição da Previsão":"Forecast description","Valor Previsto (€)":"Forecast amount (€)","Valor (€)":"Amount (€)","0 registos":"0 records","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"No recommendations generated. Click the button above to start the analysis.","Constitua o Fundo de Emergência":"Build an emergency fund","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Aim to save the equivalent of 3 to 6 months of essential expenses.","Aplique a Regra 50/30/20":"Apply the 50/30/20 rule","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Allocate 50% to needs, 30% to wants and 20% to savings/investments.","Automatize os seus Aportes":"Automate your contributions","Programe transferências logo após receber o ordenado.":"Schedule transfers as soon as you receive your salary."},"fr":{"Perfil":"Profil","Editar Perfil":"Modifier le profil","Mudar Password":"Changer le mot de passe","Configurações":"Paramètres","Botão de Sair":"Déconnexion","Sair":"Déconnexion","Menu":"Menu","Visão Geral":"Vue générale","Transações":"Transactions","Calendário":"Calendrier","Previsibilidade":"Prévisions","Investimentos":"Investissements","Categorias":"Catégories","Relatórios & IA":"Rapports & IA","Conta à Ordem":"Compte courant","Receitas (Mês)":"Revenus (mois)","Despesas (Mês)":"Dépenses (mois)","Investimento & Poupança":"Investissements et épargne","Evolução Financeira":"Évolution financière","Acompanhamento e comparação de rendimentos e gastos":"Suivi et comparaison des revenus et des dépenses","Receitas":"Revenus","Despesas":"Dépenses","Gastos por Categoria":"Dépenses par catégorie","Atividades Recentes (Últimos 15)":"Activités récentes (15 dernières)","Investimentos & Poupança":"Investissements et épargne","Gestão de reservas e transferências para a Conta à Ordem":"Gestion de l’épargne et des transferts vers le compte courant","Resgatar para C/O":"Retirer vers le compte courant","Total Investido":"Total investi","Reserva Emergência":"Fonds d’urgence","Ações, ETFs & PPR":"Actions, ETF et plans d’épargne retraite","Resgatado (C/O)":"Retiré (compte courant)","Evolução do Património Investido":"Évolution du patrimoine investi","Distribuição do Portfólio":"Répartition du portefeuille","+ Nova Entrada":"+ Nouvelle opération","Histórico de Lançamentos":"Historique des opérations","registos":"enregistrements","Calendário Financeiro":"Calendrier financier","Despesas e receitas registadas e previstas, organizadas por data":"Dépenses et revenus enregistrés et prévus, organisés par date","● Receitas":"● Revenus","● Despesas":"● Dépenses","● Previsões":"● Prévisions","Previsibilidade Financeira":"Prévisions financières","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Planification, calcul des revenus et gestion directe des parts","Novo mês / Reset":"Nouveau mois / Réinitialiser","+ Nova Previsão":"+ Nouvelle prévision","Análise Preditiva & Regras de Distribuição":"Analyse prédictive et règles de répartition","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Prévisions du mois (cliquez sur la coche pour confirmer et passer à la vue générale)","+ Nova Categoria":"+ Nouvelle catégorie","Diagnóstico & Insights de IA":"Diagnostic et analyses IA","Avaliação inteligente com base em literacia financeira validada.":"Évaluation intelligente fondée sur des connaissances financières validées.","Gerar Relatório de IA":"Générer un rapport IA","Análise da Saúde Financeira":"Analyse de la santé financière","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Cliquez sur « Générer un rapport IA » pour obtenir une analyse détaillée de vos données actuelles.","Recomendações Financeiras (Literacia Validada)":"Recommandations financières (connaissances validées)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• Aucune recommandation générée. Cliquez sur le bouton ci-dessus pour commencer l’analyse.","Nova Transação":"Nouvelle transaction","Despesa":"Dépense","Receita":"Revenu","Investimento / Poupança":"Investissement / Épargne","Cancelar":"Annuler","Guardar":"Enregistrer","Nova Previsão":"Nouvelle prévision","Despesa Prevista":"Dépense prévue","Receita Prevista":"Revenu prévu","Guardar Previsão":"Enregistrer la prévision","Transferir para C/O":"Transférer vers le compte courant","Subcategoria de origem":"Sous-catégorie source","Data do resgate":"Date du retrait","Valor a resgatar (€)":"Montant à retirer (€)","Confirmar":"Confirmer","Cor da Categoria":"Couleur de la catégorie","Escolher Ícone Profissional (15 Ícones)":"Choisir une icône professionnelle (15 icônes)","Entradas do dia":"Opérations du jour","Fechar":"Fermer","Introduza o nome que pretende apresentar na plataforma.":"Saisissez le nom à afficher sur la plateforme.","Nome":"Nom","O seu nome":"Votre nom","A palavra-passe será alterada através de um link enviado para o seu email.":"Le mot de passe sera modifié via un lien envoyé par e-mail.","Enviar email de recuperação":"Envoyer un e-mail de récupération","Moeda":"Devise","Idioma":"Langue","Tema":"Thème","Dark Mode":"Mode sombre","Light Mode":"Mode clair","Euro":"Euro","Dólar Americano":"Dollar américain","Real Brasileiro":"Réal brésilien","Português":"Portugais","Inglês":"Anglais","Francês":"Français","Alemão":"Allemand","Guardar configurações":"Enregistrer les paramètres","As alterações foram guardadas.":"Vos modifications ont été enregistrées.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"La devise modifie l’affichage des montants ; les valeurs enregistrées ne sont pas converties automatiquement.","Adicionar":"Ajouter","Editar":"Modifier","Eliminar":"Supprimer","Pesquisar":"Rechercher","Pesquisar movimentos":"Rechercher des opérations","Data":"Date","Categoria":"Catégorie","Subcategoria":"Sous-catégorie","Descrição":"Description","Valor":"Montant","Tipo":"Type","Estado":"État","Previsão":"Prévision","Prevista":"Prévue","Registada":"Enregistrée","Sem descrição":"Sans description","Ver todas":"Tout voir","restantes":"restantes","Voltar a todas as entradas deste dia":"Retour à toutes les opérations de ce jour","Sem movimentos":"Aucune opération","Sem dados":"Aucune donnée","Total":"Total","Mês":"Mois","Ano":"Année","Anterior":"Précédent","Seguinte":"Suivant","Hoje":"Aujourd’hui","Guardar alterações":"Enregistrer les modifications","A carregar...":"Chargement...","Todos":"Tous","Todos os Períodos":"Toutes les périodes","Sem histórico de investimentos.":"Aucun historique d’investissement.","Pesquisar por data, nome ou categoria...":"Rechercher par date, nom ou catégorie...","Nenhuma transação registada.":"Aucune transaction enregistrée.","Descrição da Previsão":"Description de la prévision","Valor Previsto (€)":"Montant prévu (€)","Valor (€)":"Montant (€)","0 registos":"0 enregistrement","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"Aucune recommandation générée. Cliquez sur le bouton ci-dessus pour commencer l’analyse.","Constitua o Fundo de Emergência":"Constituez un fonds d’urgence","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Épargnez l’équivalent de 3 à 6 mois de dépenses essentielles.","Aplique a Regra 50/30/20":"Appliquez la règle 50/30/20","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Affectez 50 % aux besoins, 30 % aux envies et 20 % à l’épargne et aux investissements.","Automatize os seus Aportes":"Automatisez vos versements","Programe transferências logo após receber o ordenado.":"Programmez des virements dès réception de votre salaire."},"de":{"Perfil":"Profil","Editar Perfil":"Profil bearbeiten","Mudar Password":"Passwort ändern","Configurações":"Einstellungen","Botão de Sair":"Abmelden","Sair":"Abmelden","Menu":"Menü","Visão Geral":"Übersicht","Transações":"Transaktionen","Calendário":"Kalender","Previsibilidade":"Prognose","Investimentos":"Investitionen","Categorias":"Kategorien","Relatórios & IA":"Berichte & KI","Conta à Ordem":"Girokonto","Receitas (Mês)":"Einnahmen (Monat)","Despesas (Mês)":"Ausgaben (Monat)","Investimento & Poupança":"Investitionen und Ersparnisse","Evolução Financeira":"Finanzentwicklung","Acompanhamento e comparação de rendimentos e gastos":"Einnahmen und Ausgaben verfolgen und vergleichen","Receitas":"Einnahmen","Despesas":"Ausgaben","Gastos por Categoria":"Ausgaben nach Kategorie","Atividades Recentes (Últimos 15)":"Letzte Aktivitäten (15)","Investimentos & Poupança":"Investitionen und Ersparnisse","Gestão de reservas e transferências para a Conta à Ordem":"Verwaltung von Rücklagen und Überweisungen auf das Girokonto","Resgatar para C/O":"Auf Girokonto übertragen","Total Investido":"Insgesamt investiert","Reserva Emergência":"Notfallreserve","Ações, ETFs & PPR":"Aktien, ETFs und Altersvorsorge","Resgatado (C/O)":"Ausgezahlt (Girokonto)","Evolução do Património Investido":"Entwicklung des Anlagevermögens","Distribuição do Portfólio":"Portfolioverteilung","+ Nova Entrada":"+ Neuer Eintrag","Histórico de Lançamentos":"Buchungsverlauf","registos":"Einträge","Calendário Financeiro":"Finanzkalender","Despesas e receitas registadas e previstas, organizadas por data":"Erfasste und geplante Ausgaben und Einnahmen nach Datum geordnet","● Receitas":"● Einnahmen","● Despesas":"● Ausgaben","● Previsões":"● Prognosen","Previsibilidade Financeira":"Finanzprognose","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Vorausschauende Planung, Einkommensberechnung und direkte Anteilsverwaltung","Novo mês / Reset":"Neuer Monat / Zurücksetzen","+ Nova Previsão":"+ Neue Prognose","Análise Preditiva & Regras de Distribuição":"Prognoseanalyse und Verteilungsregeln","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Monatsprognosen (Häkchen anklicken, um zu bestätigen und zur Übersicht zu wechseln)","+ Nova Categoria":"+ Neue Kategorie","Diagnóstico & Insights de IA":"KI-Diagnose und Einblicke","Avaliação inteligente com base em literacia financeira validada.":"Intelligente Bewertung auf Grundlage geprüfter Finanzbildung.","Gerar Relatório de IA":"KI-Bericht erstellen","Análise da Saúde Financeira":"Analyse der finanziellen Gesundheit","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Klicken Sie auf „KI-Bericht erstellen“, um eine detaillierte Analyse Ihrer aktuellen Daten zu erhalten.","Recomendações Financeiras (Literacia Validada)":"Finanzempfehlungen (geprüfte Finanzbildung)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• Keine Empfehlungen erstellt. Klicken Sie oben, um die Analyse zu starten.","Nova Transação":"Neue Transaktion","Despesa":"Ausgabe","Receita":"Einnahme","Investimento / Poupança":"Investition / Ersparnisse","Cancelar":"Abbrechen","Guardar":"Speichern","Nova Previsão":"Neue Prognose","Despesa Prevista":"Geplante Ausgabe","Receita Prevista":"Geplante Einnahme","Guardar Previsão":"Prognose speichern","Transferir para C/O":"Auf Girokonto übertragen","Subcategoria de origem":"Quell-Unterkategorie","Data do resgate":"Auszahlungsdatum","Valor a resgatar (€)":"Auszahlungsbetrag (€)","Confirmar":"Bestätigen","Cor da Categoria":"Kategoriefarbe","Escolher Ícone Profissional (15 Ícones)":"Professionelles Symbol auswählen (15 Symbole)","Entradas do dia":"Einträge des Tages","Fechar":"Schließen","Introduza o nome que pretende apresentar na plataforma.":"Geben Sie den Namen ein, der auf der Plattform angezeigt werden soll.","Nome":"Name","O seu nome":"Ihr Name","A palavra-passe será alterada através de um link enviado para o seu email.":"Das Passwort wird über einen per E-Mail gesendeten Link geändert.","Enviar email de recuperação":"Wiederherstellungs-E-Mail senden","Moeda":"Währung","Idioma":"Sprache","Tema":"Design","Dark Mode":"Dunkler Modus","Light Mode":"Heller Modus","Euro":"Euro","Dólar Americano":"US-Dollar","Real Brasileiro":"Brasilianischer Real","Português":"Portugiesisch","Inglês":"Englisch","Francês":"Französisch","Alemão":"Deutsch","Guardar configurações":"Einstellungen speichern","As alterações foram guardadas.":"Änderungen wurden gespeichert.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"Die Währung ändert die Anzeige der Beträge; gespeicherte Werte werden nicht automatisch umgerechnet.","Adicionar":"Hinzufügen","Editar":"Bearbeiten","Eliminar":"Löschen","Pesquisar":"Suchen","Pesquisar movimentos":"Transaktionen suchen","Data":"Datum","Categoria":"Kategorie","Subcategoria":"Unterkategorie","Descrição":"Beschreibung","Valor":"Betrag","Tipo":"Typ","Estado":"Status","Previsão":"Prognose","Prevista":"Geplant","Registada":"Erfasst","Sem descrição":"Ohne Beschreibung","Ver todas":"Alle anzeigen","restantes":"weitere","Voltar a todas as entradas deste dia":"Zurück zu allen Einträgen dieses Tages","Sem movimentos":"Keine Transaktionen","Sem dados":"Keine Daten","Total":"Gesamt","Mês":"Monat","Ano":"Jahr","Anterior":"Zurück","Seguinte":"Weiter","Hoje":"Heute","Guardar alterações":"Änderungen speichern","A carregar...":"Wird geladen...","Todos":"Alle","Todos os Períodos":"Alle Zeiträume","Sem histórico de investimentos.":"Keine Anlagehistorie vorhanden.","Pesquisar por data, nome ou categoria...":"Nach Datum, Name oder Kategorie suchen...","Nenhuma transação registada.":"Keine Transaktionen erfasst.","Descrição da Previsão":"Prognosebeschreibung","Valor Previsto (€)":"Prognostizierter Betrag (€)","Valor (€)":"Betrag (€)","0 registos":"0 Einträge","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"Keine Empfehlungen erstellt. Klicken Sie oben, um die Analyse zu starten.","Constitua o Fundo de Emergência":"Bauen Sie einen Notfallfonds auf","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Sparen Sie das Äquivalent von 3 bis 6 Monaten notwendiger Ausgaben.","Aplique a Regra 50/30/20":"Wenden Sie die 50/30/20-Regel an","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Verteilen Sie 50 % auf Bedürfnisse, 30 % auf Wünsche und 20 % auf Ersparnisse und Investitionen.","Automatize os seus Aportes":"Automatisieren Sie Ihre Sparbeiträge","Programe transferências logo após receber o ordenado.":"Richten Sie Überweisungen direkt nach Gehaltseingang ein."}};
+    const uiTranslations = {"en":{"Perfil":"Profile","Editar Perfil":"Edit profile","Mudar Password":"Change password","Configurações":"Settings","Botão de Sair":"Log out","Sair":"Log out","Menu":"Menu","Visão Geral":"Overview","Transações":"Transactions","Calendário":"Calendar","Previsibilidade":"Forecast","Investimentos":"Investments","Categorias":"Categories","Relatórios & IA":"Reports & AI","Conta à Ordem":"Current account","Receitas (Mês)":"Income (month)","Despesas (Mês)":"Expenses (month)","Investimento & Poupança":"Investments & savings","Evolução Financeira":"Financial evolution","Acompanhamento e comparação de rendimentos e gastos":"Track and compare income and expenses","Receitas":"Income","Despesas":"Expenses","Gastos por Categoria":"Spending by category","Atividades Recentes (Últimos 15)":"Recent activity (last 15)","Investimentos & Poupança":"Investments & savings","Gestão de reservas e transferências para a Conta à Ordem":"Manage savings and transfers to the current account","Resgatar para C/O":"Withdraw to current account","Total Investido":"Total invested","Reserva Emergência":"Emergency fund","Ações, ETFs & PPR":"Stocks, ETFs & pension plans","Resgatado (C/O)":"Withdrawn (current account)","Evolução do Património Investido":"Invested assets over time","Distribuição do Portfólio":"Portfolio allocation","+ Nova Entrada":"+ New entry","Histórico de Lançamentos":"Transaction history","registos":"records","Calendário Financeiro":"Financial calendar","Despesas e receitas registadas e previstas, organizadas por data":"Recorded and forecast expenses and income, organised by date","● Receitas":"● Income","● Despesas":"● Expenses","● Previsões":"● Forecasts","Previsibilidade Financeira":"Financial forecast","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Forward planning, income calculations and direct allocation management","Novo mês / Reset":"New month / Reset","+ Nova Previsão":"+ New forecast","Análise Preditiva & Regras de Distribuição":"Predictive analysis & allocation rules","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Monthly forecasts (click the check mark to confirm and move to Overview)","+ Nova Categoria":"+ New category","Diagnóstico & Insights de IA":"AI diagnosis & insights","Avaliação inteligente com base em literacia financeira validada.":"Smart assessment based on validated financial literacy.","Gerar Relatório de IA":"Generate AI report","Análise da Saúde Financeira":"Financial health analysis","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Click “Generate AI report” to get a detailed assessment based on your current data.","Recomendações Financeiras (Literacia Validada)":"Financial recommendations (validated literacy)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• No recommendations generated. Click the button above to start the analysis.","Nova Transação":"New transaction","Despesa":"Expense","Receita":"Income","Investimento / Poupança":"Investment / Savings","Cancelar":"Cancel","Guardar":"Save","Nova Previsão":"New forecast","Despesa Prevista":"Forecast expense","Receita Prevista":"Forecast income","Guardar Previsão":"Save forecast","Transferir para C/O":"Transfer to current account","Subcategoria de origem":"Source subcategory","Data do resgate":"Withdrawal date","Valor a resgatar (€)":"Amount to withdraw (€)","Confirmar":"Confirm","Cor da Categoria":"Category colour","Escolher Ícone Profissional (15 Ícones)":"Choose professional icon (15 icons)","Entradas do dia":"Day entries","Fechar":"Close","Introduza o nome que pretende apresentar na plataforma.":"Enter the name you want displayed on the platform.","Nome":"Name","O seu nome":"Your name","A palavra-passe será alterada através de um link enviado para o seu email.":"Your password will be changed using a link sent to your email.","Enviar email de recuperação":"Send recovery email","Moeda":"Currency","Idioma":"Language","Tema":"Theme","Dark Mode":"Dark mode","Light Mode":"Light mode","Euro":"Euro","Dólar Americano":"US Dollar","Real Brasileiro":"Brazilian Real","Português":"Portuguese","Inglês":"English","Francês":"French","Alemão":"German","Guardar configurações":"Save settings","As alterações foram guardadas.":"Your changes have been saved.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"The currency changes how values are displayed; saved amounts are not automatically converted.","Adicionar":"Add","Editar":"Edit","Eliminar":"Delete","Pesquisar":"Search","Pesquisar movimentos":"Search transactions","Data":"Date","Categoria":"Category","Subcategoria":"Subcategory","Descrição":"Description","Valor":"Amount","Tipo":"Type","Estado":"Status","Previsão":"Forecast","Prevista":"Forecast","Registada":"Recorded","Sem descrição":"No description","Ver todas":"View all","restantes":"remaining","Voltar a todas as entradas deste dia":"Back to all entries for this day","Sem movimentos":"No transactions","Sem dados":"No data","Total":"Total","Mês":"Month","Ano":"Year","Anterior":"Previous","Seguinte":"Next","Hoje":"Today","Guardar alterações":"Save changes","A carregar...":"Loading...","Todos":"All","Todos os Períodos":"All periods","Sem histórico de investimentos.":"No investment history.","Pesquisar por data, nome ou categoria...":"Search by date, name or category...","Nenhuma transação registada.":"No transactions recorded.","Descrição da Previsão":"Forecast description","Valor Previsto (€)":"Forecast amount (€)","Valor (€)":"Amount (€)","0 registos":"0 records","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"No recommendations generated. Click the button above to start the analysis.","Constitua o Fundo de Emergência":"Build an emergency fund","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Aim to save the equivalent of 3 to 6 months of essential expenses.","Aplique a Regra 50/30/20":"Apply the 50/30/20 rule","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Allocate 50% to needs, 30% to wants and 20% to savings/investments.","Automatize os seus Aportes":"Automate your contributions","Programe transferências logo após receber o ordenado.":"Schedule transfers as soon as you receive your salary.","Tendência mensal":"Monthly trend","Evolução das receitas, despesas e investimentos ao longo dos meses":"Income, expenses and investments over time","Ainda não existem movimentos suficientes para mostrar a evolução mensal.":"There are not enough transactions to show the monthly trend yet.","Importar documento":"Import document","Criar despesa a partir de documento":"Create expense from document","Seleciona uma fatura, recibo ou comprovativo":"Select an invoice, receipt or payment confirmation","Tamanho máximo: 12 MB":"Maximum size: 12 MB","A leitura é feita no teu navegador. O documento não é enviado para um serviço externo. Confirma sempre os dados extraídos antes de guardar.":"The document is read in your browser and is not sent to an external service. Always check the extracted details before saving.","Zona de perigo":"Danger zone","Elimina os movimentos, previsões, categorias personalizadas e repõe as preferências iniciais desta conta.":"Deletes transactions, forecasts and custom categories, and restores this account's default preferences.","Apagar Dados":"Delete data","Apagar todos os dados?":"Delete all data?","Esta ação não pode ser anulada.":"This action cannot be undone.","Serão eliminados os movimentos, previsões, saldo inicial e categorias personalizadas desta conta.":"This account's transactions, forecasts, opening balance and custom categories will be deleted.","As categorias de origem serão repostas e o nome, moeda, idioma e tema voltarão às definições iniciais.":"Default categories will be restored, and the name, currency, language and theme will return to their initial settings.","A conta de acesso e a subscrição não serão eliminadas nem alteradas.":"Your login account and subscription will not be deleted or changed.","Sim, apagar todos os dados":"Yes, delete all data","Dados extraídos do documento. Confirme e edite os campos antes de guardar a despesa.":"Details extracted from the document. Check and edit the fields before saving the expense.","Confirmar despesa importada":"Confirm imported expense","Leitura concluída.":"Reading complete.","não detetada":"not detected","não detetado":"not detected","Data:":"Date:","Valor:":"Amount:","Entidade:":"Entity:","Confirma e edita os campos antes de guardar.":"Review and edit the fields before saving.","Não foi possível ler este documento. Tenta uma imagem mais nítida ou introduz os dados manualmente.":"This document could not be read. Try a clearer image or enter the details manually.","Formato não suportado. Seleciona um PDF, JPG, PNG ou WEBP.":"Unsupported format. Select a PDF, JPG, PNG or WEBP file.","O ficheiro ultrapassa o limite de 12 MB.":"The file exceeds the 12 MB limit.","Não foi possível identificar a conta atual. Nenhum dado foi alterado.":"Could not identify the current account. No data was changed.","A apagar...":"Deleting...","Os dados foram apagados e as definições iniciais foram repostas. A conta e a subscrição continuam ativas.":"The data was deleted and the default settings were restored. Your account and subscription remain active.","Não foi possível apagar os dados. Verifica a ligação e tenta novamente.":"Could not delete the data. Check your connection and try again.","A preparar leitura:":"Preparing OCR: "},"fr":{"Perfil":"Profil","Editar Perfil":"Modifier le profil","Mudar Password":"Changer le mot de passe","Configurações":"Paramètres","Botão de Sair":"Déconnexion","Sair":"Déconnexion","Menu":"Menu","Visão Geral":"Vue générale","Transações":"Transactions","Calendário":"Calendrier","Previsibilidade":"Prévisions","Investimentos":"Investissements","Categorias":"Catégories","Relatórios & IA":"Rapports & IA","Conta à Ordem":"Compte courant","Receitas (Mês)":"Revenus (mois)","Despesas (Mês)":"Dépenses (mois)","Investimento & Poupança":"Investissements et épargne","Evolução Financeira":"Évolution financière","Acompanhamento e comparação de rendimentos e gastos":"Suivi et comparaison des revenus et des dépenses","Receitas":"Revenus","Despesas":"Dépenses","Gastos por Categoria":"Dépenses par catégorie","Atividades Recentes (Últimos 15)":"Activités récentes (15 dernières)","Investimentos & Poupança":"Investissements et épargne","Gestão de reservas e transferências para a Conta à Ordem":"Gestion de l’épargne et des transferts vers le compte courant","Resgatar para C/O":"Retirer vers le compte courant","Total Investido":"Total investi","Reserva Emergência":"Fonds d’urgence","Ações, ETFs & PPR":"Actions, ETF et plans d’épargne retraite","Resgatado (C/O)":"Retiré (compte courant)","Evolução do Património Investido":"Évolution du patrimoine investi","Distribuição do Portfólio":"Répartition du portefeuille","+ Nova Entrada":"+ Nouvelle opération","Histórico de Lançamentos":"Historique des opérations","registos":"enregistrements","Calendário Financeiro":"Calendrier financier","Despesas e receitas registadas e previstas, organizadas por data":"Dépenses et revenus enregistrés et prévus, organisés par date","● Receitas":"● Revenus","● Despesas":"● Dépenses","● Previsões":"● Prévisions","Previsibilidade Financeira":"Prévisions financières","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Planification, calcul des revenus et gestion directe des parts","Novo mês / Reset":"Nouveau mois / Réinitialiser","+ Nova Previsão":"+ Nouvelle prévision","Análise Preditiva & Regras de Distribuição":"Analyse prédictive et règles de répartition","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Prévisions du mois (cliquez sur la coche pour confirmer et passer à la vue générale)","+ Nova Categoria":"+ Nouvelle catégorie","Diagnóstico & Insights de IA":"Diagnostic et analyses IA","Avaliação inteligente com base em literacia financeira validada.":"Évaluation intelligente fondée sur des connaissances financières validées.","Gerar Relatório de IA":"Générer un rapport IA","Análise da Saúde Financeira":"Analyse de la santé financière","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Cliquez sur « Générer un rapport IA » pour obtenir une analyse détaillée de vos données actuelles.","Recomendações Financeiras (Literacia Validada)":"Recommandations financières (connaissances validées)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• Aucune recommandation générée. Cliquez sur le bouton ci-dessus pour commencer l’analyse.","Nova Transação":"Nouvelle transaction","Despesa":"Dépense","Receita":"Revenu","Investimento / Poupança":"Investissement / Épargne","Cancelar":"Annuler","Guardar":"Enregistrer","Nova Previsão":"Nouvelle prévision","Despesa Prevista":"Dépense prévue","Receita Prevista":"Revenu prévu","Guardar Previsão":"Enregistrer la prévision","Transferir para C/O":"Transférer vers le compte courant","Subcategoria de origem":"Sous-catégorie source","Data do resgate":"Date du retrait","Valor a resgatar (€)":"Montant à retirer (€)","Confirmar":"Confirmer","Cor da Categoria":"Couleur de la catégorie","Escolher Ícone Profissional (15 Ícones)":"Choisir une icône professionnelle (15 icônes)","Entradas do dia":"Opérations du jour","Fechar":"Fermer","Introduza o nome que pretende apresentar na plataforma.":"Saisissez le nom à afficher sur la plateforme.","Nome":"Nom","O seu nome":"Votre nom","A palavra-passe será alterada através de um link enviado para o seu email.":"Le mot de passe sera modifié via un lien envoyé par e-mail.","Enviar email de recuperação":"Envoyer un e-mail de récupération","Moeda":"Devise","Idioma":"Langue","Tema":"Thème","Dark Mode":"Mode sombre","Light Mode":"Mode clair","Euro":"Euro","Dólar Americano":"Dollar américain","Real Brasileiro":"Réal brésilien","Português":"Portugais","Inglês":"Anglais","Francês":"Français","Alemão":"Allemand","Guardar configurações":"Enregistrer les paramètres","As alterações foram guardadas.":"Vos modifications ont été enregistrées.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"La devise modifie l’affichage des montants ; les valeurs enregistrées ne sont pas converties automatiquement.","Adicionar":"Ajouter","Editar":"Modifier","Eliminar":"Supprimer","Pesquisar":"Rechercher","Pesquisar movimentos":"Rechercher des opérations","Data":"Date","Categoria":"Catégorie","Subcategoria":"Sous-catégorie","Descrição":"Description","Valor":"Montant","Tipo":"Type","Estado":"État","Previsão":"Prévision","Prevista":"Prévue","Registada":"Enregistrée","Sem descrição":"Sans description","Ver todas":"Tout voir","restantes":"restantes","Voltar a todas as entradas deste dia":"Retour à toutes les opérations de ce jour","Sem movimentos":"Aucune opération","Sem dados":"Aucune donnée","Total":"Total","Mês":"Mois","Ano":"Année","Anterior":"Précédent","Seguinte":"Suivant","Hoje":"Aujourd’hui","Guardar alterações":"Enregistrer les modifications","A carregar...":"Chargement...","Todos":"Tous","Todos os Períodos":"Toutes les périodes","Sem histórico de investimentos.":"Aucun historique d’investissement.","Pesquisar por data, nome ou categoria...":"Rechercher par date, nom ou catégorie...","Nenhuma transação registada.":"Aucune transaction enregistrée.","Descrição da Previsão":"Description de la prévision","Valor Previsto (€)":"Montant prévu (€)","Valor (€)":"Montant (€)","0 registos":"0 enregistrement","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"Aucune recommandation générée. Cliquez sur le bouton ci-dessus pour commencer l’analyse.","Constitua o Fundo de Emergência":"Constituez un fonds d’urgence","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Épargnez l’équivalent de 3 à 6 mois de dépenses essentielles.","Aplique a Regra 50/30/20":"Appliquez la règle 50/30/20","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Affectez 50 % aux besoins, 30 % aux envies et 20 % à l’épargne et aux investissements.","Automatize os seus Aportes":"Automatisez vos versements","Programe transferências logo após receber o ordenado.":"Programmez des virements dès réception de votre salaire.","Tendência mensal":"Tendance mensuelle","Evolução das receitas, despesas e investimentos ao longo dos meses":"Évolution des revenus, des dépenses et des investissements au fil des mois","Ainda não existem movimentos suficientes para mostrar a evolução mensal.":"Il n’y a pas encore assez d’opérations pour afficher la tendance mensuelle.","Importar documento":"Importer un document","Criar despesa a partir de documento":"Créer une dépense à partir d’un document","Seleciona uma fatura, recibo ou comprovativo":"Sélectionnez une facture, un reçu ou un justificatif de paiement","Tamanho máximo: 12 MB":"Taille maximale : 12 Mo","A leitura é feita no teu navegador. O documento não é enviado para um serviço externo. Confirma sempre os dados extraídos antes de guardar.":"La lecture est effectuée dans votre navigateur. Le document n’est envoyé à aucun service externe. Vérifiez toujours les données extraites avant l’enregistrement.","Zona de perigo":"Zone dangereuse","Elimina os movimentos, previsões, categorias personalizadas e repõe as preferências iniciais desta conta.":"Supprime les opérations, les prévisions et les catégories personnalisées, puis rétablit les préférences initiales du compte.","Apagar Dados":"Supprimer les données","Apagar todos os dados?":"Supprimer toutes les données ?","Esta ação não pode ser anulada.":"Cette action est irréversible.","Serão eliminados os movimentos, previsões, saldo inicial e categorias personalizadas desta conta.":"Les opérations, les prévisions, le solde initial et les catégories personnalisées de ce compte seront supprimés.","As categorias de origem serão repostas e o nome, moeda, idioma e tema voltarão às definições iniciais.":"Les catégories par défaut seront rétablies et le nom, la devise, la langue et le thème retrouveront leurs paramètres initiaux.","A conta de acesso e a subscrição não serão eliminadas nem alteradas.":"Le compte de connexion et l’abonnement ne seront ni supprimés ni modifiés.","Sim, apagar todos os dados":"Oui, supprimer toutes les données","Dados extraídos do documento. Confirme e edite os campos antes de guardar a despesa.":"Données extraites du document. Vérifiez et modifiez les champs avant d’enregistrer la dépense.","Confirmar despesa importada":"Confirmer la dépense importée","Leitura concluída.":"Lecture terminée.","não detetada":"non détectée","não detetado":"non détecté","Data:":"Date :","Valor:":"Montant :","Entidade:":"Entité :","Confirma e edita os campos antes de guardar.":"Vérifiez et modifiez les champs avant l’enregistrement.","Não foi possível ler este documento. Tenta uma imagem mais nítida ou introduz os dados manualmente.":"Impossible de lire ce document. Essayez une image plus nette ou saisissez les informations manuellement.","Formato não suportado. Seleciona um PDF, JPG, PNG ou WEBP.":"Format non pris en charge. Sélectionnez un fichier PDF, JPG, PNG ou WEBP.","O ficheiro ultrapassa o limite de 12 MB.":"Le fichier dépasse la limite de 12 Mo.","Não foi possível identificar a conta atual. Nenhum dado foi alterado.":"Impossible d’identifier le compte actuel. Aucune donnée n’a été modifiée.","A apagar...":"Suppression...","Os dados foram apagados e as definições iniciais foram repostas. A conta e a subscrição continuam ativas.":"Les données ont été supprimées et les paramètres initiaux rétablis. Votre compte et votre abonnement restent actifs.","Não foi possível apagar os dados. Verifica a ligação e tenta novamente.":"Impossible de supprimer les données. Vérifiez votre connexion et réessayez.","A preparar leitura:":"Préparation OCR : "},"de":{"Perfil":"Profil","Editar Perfil":"Profil bearbeiten","Mudar Password":"Passwort ändern","Configurações":"Einstellungen","Botão de Sair":"Abmelden","Sair":"Abmelden","Menu":"Menü","Visão Geral":"Übersicht","Transações":"Transaktionen","Calendário":"Kalender","Previsibilidade":"Prognose","Investimentos":"Investitionen","Categorias":"Kategorien","Relatórios & IA":"Berichte & KI","Conta à Ordem":"Girokonto","Receitas (Mês)":"Einnahmen (Monat)","Despesas (Mês)":"Ausgaben (Monat)","Investimento & Poupança":"Investitionen und Ersparnisse","Evolução Financeira":"Finanzentwicklung","Acompanhamento e comparação de rendimentos e gastos":"Einnahmen und Ausgaben verfolgen und vergleichen","Receitas":"Einnahmen","Despesas":"Ausgaben","Gastos por Categoria":"Ausgaben nach Kategorie","Atividades Recentes (Últimos 15)":"Letzte Aktivitäten (15)","Investimentos & Poupança":"Investitionen und Ersparnisse","Gestão de reservas e transferências para a Conta à Ordem":"Verwaltung von Rücklagen und Überweisungen auf das Girokonto","Resgatar para C/O":"Auf Girokonto übertragen","Total Investido":"Insgesamt investiert","Reserva Emergência":"Notfallreserve","Ações, ETFs & PPR":"Aktien, ETFs und Altersvorsorge","Resgatado (C/O)":"Ausgezahlt (Girokonto)","Evolução do Património Investido":"Entwicklung des Anlagevermögens","Distribuição do Portfólio":"Portfolioverteilung","+ Nova Entrada":"+ Neuer Eintrag","Histórico de Lançamentos":"Buchungsverlauf","registos":"Einträge","Calendário Financeiro":"Finanzkalender","Despesas e receitas registadas e previstas, organizadas por data":"Erfasste und geplante Ausgaben und Einnahmen nach Datum geordnet","● Receitas":"● Einnahmen","● Despesas":"● Ausgaben","● Previsões":"● Prognosen","Previsibilidade Financeira":"Finanzprognose","Planeamento antecipado, cálculo sobre rendimento e gestão direta nas quotas":"Vorausschauende Planung, Einkommensberechnung und direkte Anteilsverwaltung","Novo mês / Reset":"Neuer Monat / Zurücksetzen","+ Nova Previsão":"+ Neue Prognose","Análise Preditiva & Regras de Distribuição":"Prognoseanalyse und Verteilungsregeln","Previsões do Mês (Clica no visto para confirmar e passar à Visão Geral)":"Monatsprognosen (Häkchen anklicken, um zu bestätigen und zur Übersicht zu wechseln)","+ Nova Categoria":"+ Neue Kategorie","Diagnóstico & Insights de IA":"KI-Diagnose und Einblicke","Avaliação inteligente com base em literacia financeira validada.":"Intelligente Bewertung auf Grundlage geprüfter Finanzbildung.","Gerar Relatório de IA":"KI-Bericht erstellen","Análise da Saúde Financeira":"Analyse der finanziellen Gesundheit","Clique em \"Gerar Relatório de IA\" para obter o diagnóstico detalhado baseado nos seus dados atuais.":"Klicken Sie auf „KI-Bericht erstellen“, um eine detaillierte Analyse Ihrer aktuellen Daten zu erhalten.","Recomendações Financeiras (Literacia Validada)":"Finanzempfehlungen (geprüfte Finanzbildung)","• Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"• Keine Empfehlungen erstellt. Klicken Sie oben, um die Analyse zu starten.","Nova Transação":"Neue Transaktion","Despesa":"Ausgabe","Receita":"Einnahme","Investimento / Poupança":"Investition / Ersparnisse","Cancelar":"Abbrechen","Guardar":"Speichern","Nova Previsão":"Neue Prognose","Despesa Prevista":"Geplante Ausgabe","Receita Prevista":"Geplante Einnahme","Guardar Previsão":"Prognose speichern","Transferir para C/O":"Auf Girokonto übertragen","Subcategoria de origem":"Quell-Unterkategorie","Data do resgate":"Auszahlungsdatum","Valor a resgatar (€)":"Auszahlungsbetrag (€)","Confirmar":"Bestätigen","Cor da Categoria":"Kategoriefarbe","Escolher Ícone Profissional (15 Ícones)":"Professionelles Symbol auswählen (15 Symbole)","Entradas do dia":"Einträge des Tages","Fechar":"Schließen","Introduza o nome que pretende apresentar na plataforma.":"Geben Sie den Namen ein, der auf der Plattform angezeigt werden soll.","Nome":"Name","O seu nome":"Ihr Name","A palavra-passe será alterada através de um link enviado para o seu email.":"Das Passwort wird über einen per E-Mail gesendeten Link geändert.","Enviar email de recuperação":"Wiederherstellungs-E-Mail senden","Moeda":"Währung","Idioma":"Sprache","Tema":"Design","Dark Mode":"Dunkler Modus","Light Mode":"Heller Modus","Euro":"Euro","Dólar Americano":"US-Dollar","Real Brasileiro":"Brasilianischer Real","Português":"Portugiesisch","Inglês":"Englisch","Francês":"Französisch","Alemão":"Deutsch","Guardar configurações":"Einstellungen speichern","As alterações foram guardadas.":"Änderungen wurden gespeichert.","A moeda altera a apresentação dos valores, não converte automaticamente os montantes guardados.":"Die Währung ändert die Anzeige der Beträge; gespeicherte Werte werden nicht automatisch umgerechnet.","Adicionar":"Hinzufügen","Editar":"Bearbeiten","Eliminar":"Löschen","Pesquisar":"Suchen","Pesquisar movimentos":"Transaktionen suchen","Data":"Datum","Categoria":"Kategorie","Subcategoria":"Unterkategorie","Descrição":"Beschreibung","Valor":"Betrag","Tipo":"Typ","Estado":"Status","Previsão":"Prognose","Prevista":"Geplant","Registada":"Erfasst","Sem descrição":"Ohne Beschreibung","Ver todas":"Alle anzeigen","restantes":"weitere","Voltar a todas as entradas deste dia":"Zurück zu allen Einträgen dieses Tages","Sem movimentos":"Keine Transaktionen","Sem dados":"Keine Daten","Total":"Gesamt","Mês":"Monat","Ano":"Jahr","Anterior":"Zurück","Seguinte":"Weiter","Hoje":"Heute","Guardar alterações":"Änderungen speichern","A carregar...":"Wird geladen...","Todos":"Alle","Todos os Períodos":"Alle Zeiträume","Sem histórico de investimentos.":"Keine Anlagehistorie vorhanden.","Pesquisar por data, nome ou categoria...":"Nach Datum, Name oder Kategorie suchen...","Nenhuma transação registada.":"Keine Transaktionen erfasst.","Descrição da Previsão":"Prognosebeschreibung","Valor Previsto (€)":"Prognostizierter Betrag (€)","Valor (€)":"Betrag (€)","0 registos":"0 Einträge","Sem recomendações geradas. Clique no botão acima para iniciar a análise.":"Keine Empfehlungen erstellt. Klicken Sie oben, um die Analyse zu starten.","Constitua o Fundo de Emergência":"Bauen Sie einen Notfallfonds auf","Garanta o equivalente a 3 a 6 meses de despesas essenciais.":"Sparen Sie das Äquivalent von 3 bis 6 Monaten notwendiger Ausgaben.","Aplique a Regra 50/30/20":"Wenden Sie die 50/30/20-Regel an","Direcione 50% para necessidades, 30% para desejos e 20% para poupança/investimento.":"Verteilen Sie 50 % auf Bedürfnisse, 30 % auf Wünsche und 20 % auf Ersparnisse und Investitionen.","Automatize os seus Aportes":"Automatisieren Sie Ihre Sparbeiträge","Programe transferências logo após receber o ordenado.":"Richten Sie Überweisungen direkt nach Gehaltseingang ein.","Tendência mensal":"Monatlicher Verlauf","Evolução das receitas, despesas e investimentos ao longo dos meses":"Entwicklung von Einnahmen, Ausgaben und Investitionen im Monatsverlauf","Ainda não existem movimentos suficientes para mostrar a evolução mensal.":"Es gibt noch nicht genügend Buchungen, um den Monatsverlauf anzuzeigen.","Importar documento":"Dokument importieren","Criar despesa a partir de documento":"Aus einem Dokument eine Ausgabe erstellen","Seleciona uma fatura, recibo ou comprovativo":"Wählen Sie eine Rechnung, Quittung oder einen Zahlungsbeleg aus","Tamanho máximo: 12 MB":"Maximale Dateigröße: 12 MB","A leitura é feita no teu navegador. O documento não é enviado para um serviço externo. Confirma sempre os dados extraídos antes de guardar.":"Das Dokument wird in Ihrem Browser gelesen und nicht an einen externen Dienst gesendet. Prüfen Sie die erkannten Angaben vor dem Speichern.","Zona de perigo":"Gefahrenbereich","Elimina os movimentos, previsões, categorias personalizadas e repõe as preferências iniciais desta conta.":"Löscht Buchungen, Prognosen und benutzerdefinierte Kategorien und stellt die ursprünglichen Kontoeinstellungen wieder her.","Apagar Dados":"Daten löschen","Apagar todos os dados?":"Alle Daten löschen?","Esta ação não pode ser anulada.":"Diese Aktion kann nicht rückgängig gemacht werden.","Serão eliminados os movimentos, previsões, saldo inicial e categorias personalizadas desta conta.":"Buchungen, Prognosen, Anfangssaldo und benutzerdefinierte Kategorien dieses Kontos werden gelöscht.","As categorias de origem serão repostas e o nome, moeda, idioma e tema voltarão às definições iniciais.":"Die Standardkategorien werden wiederhergestellt. Name, Währung, Sprache und Design werden auf die ursprünglichen Einstellungen zurückgesetzt.","A conta de acesso e a subscrição não serão eliminadas nem alteradas.":"Ihr Anmeldekonto und Ihr Abonnement werden weder gelöscht noch geändert.","Sim, apagar todos os dados":"Ja, alle Daten löschen","Dados extraídos do documento. Confirme e edite os campos antes de guardar a despesa.":"Aus dem Dokument erkannte Angaben. Prüfen und bearbeiten Sie die Felder, bevor Sie die Ausgabe speichern.","Confirmar despesa importada":"Importierte Ausgabe bestätigen","Leitura concluída.":"Erkennung abgeschlossen.","não detetada":"nicht erkannt","não detetado":"nicht erkannt","Data:":"Datum:","Valor:":"Betrag:","Entidade:":"Unternehmen:","Confirma e edita os campos antes de guardar.":"Prüfen und bearbeiten Sie die Felder vor dem Speichern.","Não foi possível ler este documento. Tenta uma imagem mais nítida ou introduz os dados manualmente.":"Das Dokument konnte nicht gelesen werden. Versuchen Sie ein klareres Bild oder geben Sie die Angaben manuell ein.","Formato não suportado. Seleciona um PDF, JPG, PNG ou WEBP.":"Nicht unterstütztes Format. Wählen Sie eine PDF-, JPG-, PNG- oder WEBP-Datei.","O ficheiro ultrapassa o limite de 12 MB.":"Die Datei überschreitet die Grenze von 12 MB.","Não foi possível identificar a conta atual. Nenhum dado foi alterado.":"Das aktuelle Konto konnte nicht erkannt werden. Es wurden keine Daten geändert.","A apagar...":"Wird gelöscht...","Os dados foram apagados e as definições iniciais foram repostas. A conta e a subscrição continuam ativas.":"Die Daten wurden gelöscht und die Standardeinstellungen wiederhergestellt. Konto und Abonnement bleiben aktiv.","Não foi possível apagar os dados. Verifica a ligação e tenta novamente.":"Die Daten konnten nicht gelöscht werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.","A preparar leitura:":"OCR wird vorbereitet: "}};
     const translationSkipIds = new Set([
       'journalList','recentTransactionsList','investmentsList','forecastList',
       'categoriesContainer','categoryBreakdownList','financialCalendar',
@@ -767,6 +935,7 @@ window.logout = async function() {
       renderKPIs();
       populateChartDropdowns();
       renderEvolutionChart();
+      renderFinancialTrendChart();
       renderCategoryPieAndList();
       renderRecent();
       renderJournalFilterButtons();
@@ -778,6 +947,107 @@ window.logout = async function() {
       renderInvestmentLineChart();
       renderDynamicEditIcons();
     }
+
+
+    function renderFinancialTrendChart() {
+      const container = document.getElementById('financialTrendChartContainer');
+      if (!container) return;
+      const txs = (Array.isArray(appState.transactions) ? appState.transactions : [])
+        .filter(t => t && t.date && /^\d{4}-\d{2}/.test(t.date));
+      if (!txs.length) {
+        container.innerHTML = '<p class="text-[11px] sm:text-xs text-brand-gray text-center py-7">Ainda não existem movimentos suficientes para mostrar a evolução mensal.</p>';
+        return;
+      }
+      const monthly = {};
+      txs.forEach(t => {
+        const month = String(t.date).slice(0, 7);
+        if (!monthly[month]) monthly[month] = { receita: 0, despesa: 0, investimento: 0 };
+        const amount = Number(t.amount) || 0;
+        if (t.type === 'receita') monthly[month].receita += amount;
+        if (t.type === 'despesa') monthly[month].despesa += amount;
+        if (t.type === 'investimento') monthly[month].investimento += amount;
+      });
+      const sorted = Object.keys(monthly).sort();
+      const [startYear, startMonth] = sorted[0].split('-').map(Number);
+      const [endYear, endMonth] = sorted[sorted.length - 1].split('-').map(Number);
+      const months = [];
+      let cursor = new Date(startYear, startMonth - 1, 1);
+      const end = new Date(endYear, endMonth - 1, 1);
+      while (cursor <= end && months.length < 120) {
+        months.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+      const chartDict = uiTranslations[getPrefs().language] || {};
+      const series = [
+        { key: 'receita', label: chartDict['Receitas'] || 'Receitas', color: '#10b981' },
+        { key: 'despesa', label: chartDict['Despesas'] || 'Despesas', color: '#ef4444' },
+        { key: 'investimento', label: chartDict['Investimentos & Poupança'] || 'Investimentos', color: '#fbbf24' }
+      ];
+      const values = series.flatMap(s => months.map(m => monthly[m]?.[s.key] || 0));
+      const maxVal = Math.max(1, ...values);
+      const width = Math.max(680, months.length * 92), height = 230;
+      const left = 58, right = 22, top = 18, bottom = 42;
+      const plotW = width - left - right, plotH = height - top - bottom;
+      const xAt = i => months.length === 1 ? left + plotW / 2 : left + i * plotW / (months.length - 1);
+      const yAt = v => top + plotH - (v / maxVal) * plotH;
+      const grid = [0, .25, .5, .75, 1].map(frac => {
+        const y = top + plotH - frac * plotH;
+        const value = maxVal * frac;
+        return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="currentColor" opacity=".12" stroke-dasharray="3 4"></line><text x="${left-8}" y="${y+3}" text-anchor="end" fill="#94a3b8" font-size="9">${new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1}).format(value)}</text>`;
+      }).join('');
+      const lines = series.map(s => {
+        const coords = months.map((m,i) => `${xAt(i)},${yAt(monthly[m]?.[s.key] || 0)}`).join(' ');
+        const dots = months.map((m,i) => {
+          const v = monthly[m]?.[s.key] || 0;
+          return `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="3.5" fill="${s.color}" stroke="#121826" stroke-width="1.5"><title>${s.label} · ${m}: ${formatEUR(v)}</title></circle>`;
+        }).join('');
+        return `<polyline points="${coords}" fill="none" stroke="${s.color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"></polyline>${dots}`;
+      }).join('');
+      const labels = months.map((m,i) => `<text x="${xAt(i)}" y="${height-13}" text-anchor="middle" fill="#94a3b8" font-size="10">${m}</text>`).join('');
+      container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${(chartDict['Evolução das receitas, despesas e investimentos ao longo dos meses'] || 'Evolução mensal de receitas, despesas e investimentos')}" class="max-w-none">${grid}${lines}${labels}</svg>`;
+    }
+
+    window.openResetDataModal = function() {
+      const modal = document.getElementById('resetDataModal');
+      if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+    };
+    window.closeResetDataModal = function() {
+      const modal = document.getElementById('resetDataModal');
+      if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    };
+    window.confirmResetAllUserData = async function() {
+      if (!currentUserId || !supabaseClient) {
+        alert('Não foi possível identificar a conta atual. Nenhum dado foi alterado.');
+        return;
+      }
+      const button = document.querySelector('#resetDataModal button[onclick="confirmResetAllUserData()"]');
+      if (button) { button.disabled = true; button.textContent = 'A apagar...'; }
+      try {
+        appState = JSON.parse(JSON.stringify(defaultAppState));
+        const { error } = await supabaseClient.from('user_data').upsert({
+          user_id: currentUserId,
+          payload: appState,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+        if (error) throw error;
+        window.closeResetDataModal();
+        selectedJournalMonth = 'todos';
+        selectedBarMonth = 'todos';
+        selectedPieMonth = 'todos';
+        selectedPieCategory = null;
+        journalSearchTerm = '';
+        const search = document.getElementById('journalSearch');
+        if (search) search.value = '';
+        applyPreferences();
+        renderAll();
+        alert('Os dados foram apagados e as definições iniciais foram repostas. A conta e a subscrição continuam ativas.');
+      } catch (err) {
+        console.error('Erro ao repor os dados:', err);
+        alert('Não foi possível apagar os dados. Verifica a ligação e tenta novamente.');
+      } finally {
+        if (button) { button.disabled = false; button.textContent = 'Sim, apagar todos os dados'; }
+      }
+    };
 
     function renderDynamicEditIcons() {
       const btnEdit = document.getElementById('btn-edit-balance');
@@ -1497,9 +1767,15 @@ window.logout = async function() {
         <button id="userEmailDisplay" type="button" onclick="toggleProfileMenu()" class="text-xs text-[#94a3b8] font-medium hover:text-emerald-400 transition max-w-[42vw] truncate" title="Perfil">A carregar...</button>
         <div id="profileMenu" class="profile-menu hidden rounded-xl border border-brand-border bg-brand-card shadow-2xl p-2">
           <div class="px-3 py-2 border-b border-brand-border mb-1"><p id="profileMenuName" class="text-xs font-bold text-white">Perfil</p><p id="profileMenuEmail" class="text-[10px] text-brand-gray break-all"></p></div>
-          <button type="button" onclick="openProfileModal('profile')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">👤 <span>Editar Perfil</span></button>
-          <button type="button" onclick="openProfileModal('password')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">🔒 <span>Mudar Password</span></button>
-          <button type="button" onclick="openProfileModal('settings')" class="px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60">⚙️ <span>Configurações</span></button>
+          <button type="button" onclick="openProfileModal('profile')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60 transition">
+            <svg class="w-4 h-4 text-brand-gray flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" stroke-width="1.8"></circle><path d="M5 20c.7-3.2 3.2-5 7-5s6.3 1.8 7 5" stroke-width="1.8" stroke-linecap="round"></path></svg><span>Editar Perfil</span>
+          </button>
+          <button type="button" onclick="openProfileModal('password')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60 transition">
+            <svg class="w-4 h-4 text-brand-gray flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" stroke-width="1.8"></rect><path d="M8 10V7a4 4 0 018 0v3" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"></circle></svg><span>Mudar Password</span>
+          </button>
+          <button type="button" onclick="openProfileModal('settings')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs text-white hover:bg-brand-border/60 transition">
+            <svg class="w-4 h-4 text-brand-gray flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.8"></circle><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-1.7 1.7-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5v.2h-2.4v-.2a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.9.3l-.1.1L8 17l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H6.7v-2.4h.2a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9L8 8.6l1.7-1.7.1.1a1.7 1.7 0 001.9.3 1.7 1.7 0 001-1.5v-.2h2.4v.2a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1 1.7 1.7-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.5 1h.2V14h-.2a1.7 1.7 0 00-1.5 1z" stroke-width="1.4" stroke-linejoin="round"></path></svg><span>Configurações</span>
+          </button>
         </div>
       </div>
       
@@ -1633,6 +1909,18 @@ window.logout = async function() {
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-500"></span> Despesas</span>
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-400"></span> Investimentos</span>
           </div>
+          <div class="border-t border-brand-border pt-4 mt-2 space-y-3">
+            <div>
+              <h3 class="font-bold text-sm sm:text-base text-white">Tendência mensal</h3>
+              <p class="text-[10px] sm:text-xs text-brand-gray">Evolução das receitas, despesas e investimentos ao longo dos meses</p>
+            </div>
+            <div id="financialTrendChartContainer" class="w-full overflow-x-auto"></div>
+            <div class="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-[10px] sm:text-xs text-brand-gray pt-1">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span><span>Receitas</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span>Despesas</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span><span>Investimentos</span></span>
+            </div>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1700,9 +1988,15 @@ window.logout = async function() {
       <div id="view-diario" class="tab-content space-y-4 hidden">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 class="text-lg sm:text-xl font-bold text-indigo-400">Transações</h2>
-          <button onclick="window.openAddTransactionModal()" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
-            + Nova Entrada
-          </button>
+          <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+            <button type="button" onclick="window.openDocumentImportModal()" class="w-full sm:w-auto flex items-center justify-center gap-2 bg-brand-card hover:bg-brand-border border border-brand-border text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 16V4m0 0L7 9m5-5l5 5M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"></path></svg>
+              <span>Importar documento</span>
+            </button>
+            <button onclick="window.openAddTransactionModal()" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-500/20">
+              + Nova Entrada
+            </button>
+          </div>
         </div>
 
         <input id="journalSearch" type="search" oninput="window.updateJournalSearch(this.value)" placeholder="Pesquisar por data, nome ou categoria..." class="w-full bg-brand-card border border-brand-border rounded-xl p-3 text-xs text-white placeholder:text-brand-gray focus:outline-none focus:border-emerald-500">
@@ -1798,10 +2092,30 @@ window.logout = async function() {
     </main>
   </div>
 
+  <!-- MODAL: IMPORTAR DOCUMENTO PARA CRIAR DESPESA -->
+  <div id="documentImportModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[110] flex items-center justify-center p-4 hidden">
+    <div class="w-full max-w-md rounded-2xl border border-brand-border bg-brand-card p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div><h3 class="font-bold text-white text-base">Criar despesa a partir de documento</h3><p class="text-[10px] text-brand-gray mt-1">PDF, JPG, JPEG ou PNG</p></div>
+        <button type="button" onclick="window.closeDocumentImportModal()" class="text-brand-gray hover:text-white text-xl">×</button>
+      </div>
+      <div class="rounded-xl border border-dashed border-brand-border bg-brand-bg p-5 text-center space-y-3">
+        <svg class="w-9 h-9 mx-auto text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 18a4.6 4.6 0 01-.5-9.2A5.5 5.5 0 0117 7a4 4 0 011 7.9M12 12v9m0-9l-3 3m3-3l3 3"></path></svg>
+        <p class="text-xs text-white font-semibold">Seleciona uma fatura, recibo ou comprovativo</p>
+        <input id="expenseDocumentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" onchange="window.processExpenseDocument(this.files && this.files[0])" class="block w-full text-[10px] text-brand-gray file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white">
+        <p class="text-[10px] text-brand-gray">Tamanho máximo: 12 MB</p>
+      </div>
+      <div id="documentImportStatus" class="hidden rounded-lg bg-brand-bg border border-brand-border p-3 text-xs text-brand-gray" aria-live="polite"></div>
+      <p class="text-[10px] text-brand-gray">A leitura é feita no teu navegador. O documento não é enviado para um serviço externo. Confirma sempre os dados extraídos antes de guardar.</p>
+      <div class="flex justify-end"><button type="button" onclick="window.closeDocumentImportModal()" class="px-4 py-2 rounded-xl bg-brand-border text-xs text-brand-gray">Fechar</button></div>
+    </div>
+  </div>
+
   <!-- MODAL: TRANSAÇÃO -->
   <div id="txModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-brand-card border border-brand-border w-full max-w-md rounded-2xl p-5 space-y-4">
       <div class="flex justify-between items-center"><h3 id="txModalTitle" class="font-bold text-white text-sm sm:text-base">Nova Transação</h3><button onclick="window.closeTxModal()" class="text-brand-gray">✕</button></div>
+      <div id="documentImportNotice" class="hidden rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-[11px] text-emerald-300">Dados extraídos do documento. Confirme e edite os campos antes de guardar a despesa.</div>
       <form id="txForm" onsubmit="window.saveTransaction(event)" class="space-y-3">
         <input type="hidden" id="txId">
         <div class="grid grid-cols-2 gap-2">
@@ -1920,7 +2234,39 @@ window.logout = async function() {
         <div><label class="block text-xs font-semibold text-brand-gray mb-2">🌐 Idioma</label><select id="prefLanguage" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm"><option value="pt">Português</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option></select></div>
         <div><label class="block text-xs font-semibold text-brand-gray mb-2">🎨 Tema</label><select id="prefTheme" class="w-full rounded-xl border border-brand-border bg-brand-bg text-white p-3 text-sm"><option value="dark">🌙 Dark Mode</option><option value="light">☀️ Light Mode</option></select></div>
         <button type="button" onclick="savePreferences()" class="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold p-3 text-sm">Guardar configurações</button>
+        <div class="border-t border-brand-border pt-4 mt-2">
+          <p class="text-xs font-semibold text-red-400 mb-1">Zona de perigo</p>
+          <p class="text-[10px] text-brand-gray mb-3">Elimina os movimentos, previsões, categorias personalizadas e repõe as preferências iniciais desta conta.</p>
+          <button type="button" onclick="openResetDataModal()" class="w-full flex items-center justify-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold p-3 text-sm transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"></path></svg>
+            <span>Apagar Dados</span>
+          </button>
+        </div>
       </section>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMAÇÃO DE APAGAMENTO TOTAL DOS DADOS -->
+  <div id="resetDataModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[120] items-center justify-center p-4 hidden" role="dialog" aria-modal="true" aria-labelledby="resetDataTitle">
+    <div class="w-full max-w-md rounded-2xl border border-red-500/30 bg-brand-card p-5 shadow-2xl space-y-4">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v4m0 4h.01M10.3 3.9L1.9 18a2 2 0 001.7 3h16.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"></path></svg>
+        </div>
+        <div>
+          <h3 id="resetDataTitle" class="font-bold text-white text-base">Apagar todos os dados?</h3>
+          <p class="text-xs text-brand-gray mt-1">Esta ação não pode ser anulada.</p>
+        </div>
+      </div>
+      <div class="rounded-xl bg-red-500/5 border border-red-500/20 p-3 text-xs text-brand-gray space-y-1">
+        <p>Serão eliminados os movimentos, previsões, saldo inicial e categorias personalizadas desta conta.</p>
+        <p>As categorias de origem serão repostas e o nome, moeda, idioma e tema voltarão às definições iniciais.</p>
+        <p class="text-emerald-400">A conta de acesso e a subscrição não serão eliminadas nem alteradas.</p>
+      </div>
+      <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+        <button type="button" onclick="closeResetDataModal()" class="px-4 py-2.5 rounded-xl bg-brand-border text-brand-gray text-xs font-semibold">Cancelar</button>
+        <button type="button" onclick="confirmResetAllUserData()" class="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold">Sim, apagar todos os dados</button>
+      </div>
     </div>
   </div>
 
