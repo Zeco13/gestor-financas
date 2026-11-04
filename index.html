@@ -302,7 +302,19 @@
       if (lang === 'fr' && ocrMatch) displayMessage = `Reconnaissance du texte : ${ocrMatch[1]} %`;
       if (lang === 'de' && ocrMatch) displayMessage = `Texterkennung: ${ocrMatch[1]} %`;
       if (preparingMatch) displayMessage = (dict['A preparar leitura:'] || (lang === 'en' ? 'Preparing OCR: ' : lang === 'fr' ? 'Préparation OCR : ' : lang === 'de' ? 'OCR wird vorbereitet: ' : 'A preparar leitura: ')) + preparingMatch[1];
-      el.textContent = displayMessage;
+      const isProcessing = /^(A preparar|A ler página|A reconhecer texto:)/i.test(String(message));
+      if (isProcessing) {
+        const cleanMessage = String(displayMessage)
+          .replace(/\s*\d+%\s*$/, '')
+          .replace(/\s*\d+\s*\/\s*\d+\s*$/, '')
+          .trim();
+        el.innerHTML = '<div class="flex items-center gap-3" role="status" aria-live="polite">' +
+          '<span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-400/25 border-t-emerald-400 animate-spin" aria-hidden="true"></span>' +
+          '<span class="min-w-0">' + cleanMessage.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])) + '</span>' +
+          '</div>';
+      } else {
+        el.textContent = displayMessage;
+      }
       el.classList.toggle('hidden', !show);
     }
     function loadExternalScript(src, id) {
@@ -1931,7 +1943,82 @@ window.logout = async function() {
       sb.classList.add('sidebar-collapsed');
       labels.forEach(l => l.classList.add('hidden'));
     });
-  </script>
+  
+    // Encaminha documentos importados conforme a data escolhida pelo utilizador.
+    // Datas vazias nunca são interpretadas como hoje.
+    (function installImportedDocumentDateRouting() {
+      function localTodayISO() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      }
+
+      function transferImportedExpenseToForecast(dateValue) {
+        const txTitle = document.getElementById('txModalTitle');
+        if (!txTitle || !txTitle.textContent.includes('Confirmar despesa importada')) return;
+        const description = document.getElementById('txDesc').value;
+        const amount = document.getElementById('txAmount').value;
+        const category = document.getElementById('txCategory').value;
+        const subcategory = document.getElementById('txSubcategory').value;
+
+        window.closeTxModal();
+        window.openForecastModal();
+        document.getElementById('fcType').value = 'despesa';
+        window.onFcTypeChange();
+        document.getElementById('fcDate').value = dateValue;
+        document.getElementById('fcDesc').value = description;
+        document.getElementById('fcAmount').value = amount;
+        document.getElementById('fcCategory').value = category;
+        window.updateFcSubcatOptions();
+        document.getElementById('fcSubcategory').value = subcategory;
+        document.getElementById('fcModalTitle').textContent = 'Confirmar previsão importada';
+        const notice = document.getElementById('documentImportNoticeForecast');
+        if (notice) {
+          notice.textContent = 'A data indicada é futura. O documento foi encaminhado para Previsões. Confirma os dados antes de guardar.';
+          notice.classList.remove('hidden');
+        }
+      }
+
+      function transferImportedForecastToExpense(dateValue) {
+        const fcTitle = document.getElementById('fcModalTitle');
+        if (!fcTitle || !fcTitle.textContent.includes('Confirmar previsão importada')) return;
+        const description = document.getElementById('fcDesc').value;
+        const amount = document.getElementById('fcAmount').value;
+        const category = document.getElementById('fcCategory').value;
+        const subcategory = document.getElementById('fcSubcategory').value;
+
+        window.closeForecastModal();
+        window.openAddTransactionModal();
+        document.getElementById('txType').value = 'despesa';
+        window.onTxTypeChange();
+        document.getElementById('txDate').value = dateValue;
+        document.getElementById('txDesc').value = description;
+        document.getElementById('txAmount').value = amount;
+        document.getElementById('txCategory').value = category;
+        window.updateSubcatOptions();
+        document.getElementById('txSubcategory').value = subcategory;
+        document.getElementById('txModalTitle').textContent = 'Confirmar despesa importada';
+        const notice = document.getElementById('documentImportNotice');
+        if (notice) {
+          notice.textContent = 'A data indicada é hoje ou passada. O documento foi encaminhado para Despesas. Confirma os dados antes de guardar.';
+          notice.classList.remove('hidden');
+        }
+      }
+
+      document.addEventListener('change', function(event) {
+        const field = event.target;
+        if (!field || (field.id !== 'txDate' && field.id !== 'fcDate')) return;
+        const dateValue = field.value;
+        if (!dateValue) return; // Campo vazio: não encaminhar nem preencher automaticamente.
+        const today = localTodayISO();
+        if (field.id === 'txDate' && dateValue > today) {
+          transferImportedExpenseToForecast(dateValue);
+        } else if (field.id === 'fcDate' && dateValue <= today) {
+          transferImportedForecastToExpense(dateValue);
+        }
+      });
+    })();
+
+</script>
 </head>
 <body class="antialiased selection:bg-emerald-500 selection:text-white min-h-screen flex bg-brand-bg">
 
